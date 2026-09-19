@@ -45,6 +45,7 @@ import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.sources.GeoJsonSource
 import java.io.File
 import java.io.FileOutputStream
@@ -151,6 +152,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             mapLibreMap = map
             map.uiSettings.isAttributionEnabled = true
             map.uiSettings.isLogoEnabled = false
+            map.addOnCameraIdleListener {
+                // Only on idle (not every frame): refresh near-layer + list from viewport
+                scheduleForwardFilter(force = false)
+            }
             ioExecutor.execute {
                 val mbtiles = ensureMbtilesOnDisk()
                 val styleJson = assets.open(STYLE_ASSET).bufferedReader().use { it.readText() }
@@ -278,9 +283,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val lat = "%.4f".format(userLatLng.latitude)
         val lon = "%.4f".format(userLatLng.longitude)
         hintText.text = if (hasPreciseLocation) {
-            "四川离线河网 · 当前位置 $lat, $lon · 半径 ${NEARBY_KM.toInt()} km"
+            "四川离线河网 · 当前位置 $lat, $lon · 可视区域 + 前方锥形"
         } else {
-            "四川离线河网 · 默认成都 $lat, $lon · 半径 ${NEARBY_KM.toInt()} km"
+            "四川离线河网 · 默认成都 $lat, $lon · 可视区域 + 前方锥形"
         }
     }
 
@@ -314,7 +319,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayer(
                         LineLayer(LAYER_OSM, SOURCE_OSM).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#4DD0E1")),
-                            PropertyFactory.lineWidth(1.4f),
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 0.8f),
+                            Expression.stop(10, 1.2f),
+                            Expression.stop(14, 1.8f)
+                        )),
                             PropertyFactory.lineOpacity(0.55f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
@@ -324,7 +335,13 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayer(
                         LineLayer(LAYER_HYDRO, SOURCE_HYDRO).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#26C6DA")),
-                            PropertyFactory.lineWidth(2.2f),
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 1.0f),
+                            Expression.stop(10, 1.6f),
+                            Expression.stop(14, 2.2f)
+                        )),
                             PropertyFactory.lineOpacity(0.55f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
@@ -334,9 +351,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayer(
                         LineLayer(LAYER_NEAR, SOURCE_NEAR).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#00E5FF")),
-                            PropertyFactory.lineWidth(4.5f),
-                            PropertyFactory.lineOpacity(0.95f),
-                            PropertyFactory.lineBlur(0.4f),
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 1.4f),
+                            Expression.stop(10, 2.2f),
+                            Expression.stop(14, 2.8f)
+                        )),
+                            PropertyFactory.lineOpacity(0.9f),
+                            PropertyFactory.lineBlur(0.15f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                         )
@@ -344,9 +367,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayerBelow(
                         LineLayer(LAYER_NEAR_GLOW, SOURCE_NEAR).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#00B8D4")),
-                            PropertyFactory.lineWidth(10.0f),
-                            PropertyFactory.lineOpacity(0.25f),
-                            PropertyFactory.lineBlur(1.2f)
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 2.2f),
+                            Expression.stop(10, 3.4f),
+                            Expression.stop(14, 4.2f)
+                        )),
+                            PropertyFactory.lineOpacity(0.18f),
+                            PropertyFactory.lineBlur(0.5f)
                         ),
                         LAYER_NEAR
                     )
@@ -355,9 +384,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayer(
                         LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#FFB300")),
-                            PropertyFactory.lineWidth(7.0f),
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 1.8f),
+                            Expression.stop(10, 2.8f),
+                            Expression.stop(14, 3.4f)
+                        )),
                             PropertyFactory.lineOpacity(1.0f),
-                            PropertyFactory.lineBlur(0.2f),
+                            PropertyFactory.lineBlur(0.1f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                         )
@@ -365,9 +400,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     liveStyle.addLayerBelow(
                         LineLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#FF6D00")),
-                            PropertyFactory.lineWidth(14.0f),
-                            PropertyFactory.lineOpacity(0.35f),
-                            PropertyFactory.lineBlur(1.5f)
+                            PropertyFactory.lineWidth(Expression.interpolate(
+                            Expression.linear(),
+                            Expression.zoom(),
+                            Expression.stop(6, 2.8f),
+                            Expression.stop(10, 4.0f),
+                            Expression.stop(14, 5.0f)
+                        )),
+                            PropertyFactory.lineOpacity(0.22f),
+                            PropertyFactory.lineBlur(0.6f)
                         ),
                         LAYER_SELECTED
                     )
@@ -409,6 +450,24 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         }
     }
 
+    private fun currentViewportBounds(): LatLngBounds? {
+        return try {
+            mapLibreMap?.projection?.visibleRegion?.latLngBounds
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /** Fallback bbox around GPS when viewport is not yet available. */
+    private fun fallbackRadiusBounds(center: LatLng): LatLngBounds {
+        val padDeg = NEARBY_KM / 111.0
+        val cosLat = cos(Math.toRadians(center.latitude)).coerceAtLeast(0.2)
+        return LatLngBounds.Builder()
+            .include(LatLng(center.latitude - padDeg, center.longitude - padDeg / cosLat))
+            .include(LatLng(center.latitude + padDeg, center.longitude + padDeg / cosLat))
+            .build()
+    }
+
     private fun applyForwardConeFilterAsync() {
         if (!riversReady) {
             riverAdapter.setStatus(getString(R.string.loading_rivers))
@@ -422,16 +481,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val center = userLatLng
         val heading = currentHeadingDeg
         val useCone = hasCompass && heading != null
+        val viewport = currentViewportBounds() ?: fallbackRadiusBounds(center)
+        // Slight pad so rivers clipped at the edge still count
+        val padFrac = 0.02
+        val latPad = (viewport.latitudeNorth - viewport.latitudeSouth).coerceAtLeast(0.01) * padFrac
+        val lonPad = (viewport.longitudeEast - viewport.longitudeWest).coerceAtLeast(0.01) * padFrac
+        val minLat = viewport.latitudeSouth - latPad
+        val maxLat = viewport.latitudeNorth + latPad
+        val minLon = viewport.longitudeWest - lonPad
+        val maxLon = viewport.longitudeEast + lonPad
         ioExecutor.execute {
             try {
-                val padDeg = NEARBY_KM / 111.0
-                val minLat = center.latitude - padDeg
-                val maxLat = center.latitude + padDeg
-                val cosLat = cos(Math.toRadians(center.latitude)).coerceAtLeast(0.2)
-                val minLon = center.longitude - padDeg / cosLat
-                val maxLon = center.longitude + padDeg / cosLat
-
-                val nearbyFeatures = JSONArray()
+                val nearCandidates = mutableListOf<Pair<Double, JSONObject>>()
                 val ranked = mutableListOf<RiverItem>()
 
                 fun consider(features: JSONArray, index: Int, sourceTag: String) {
@@ -439,21 +500,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     val geom = featureObj.getJSONObject("geometry")
                     val coords = geom.getJSONArray("coordinates")
                     val type = geom.optString("type")
+                    // Near-layer: any river intersecting current map viewport
                     if (!bboxIntersects(type, coords, minLon, minLat, maxLon, maxLat)) return
+
                     val nearest = nearestPointOnGeometry(center, type, coords) ?: return
                     val minKm = nearest.third
-                    if (minKm > NEARBY_KM) return
+                    nearCandidates.add(minKm to featureObj)
 
                     val bearing = bearingDegrees(
                         center.latitude, center.longitude,
                         nearest.first, nearest.second
                     )
+                    // List: viewport ∩ heading cone (cone relative to user location)
                     if (useCone) {
                         val delta = angularDiffDeg(heading!!.toDouble(), bearing)
                         if (delta > CONE_HALF_DEG) return
                     }
 
-                    nearbyFeatures.put(featureObj)
                     val props = featureObj.optJSONObject("properties")
                     val displayName = displayNameFor(props, sourceTag, featureKey(props, sourceTag, index))
                     val key = identityKey(props, sourceTag, index, displayName)
@@ -505,9 +568,16 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 )
                 val display = aggregated.take(LIST_LIMIT).toMutableList()
 
+                // Cap near-layer for overview zooms: closest-to-user within viewport
+                nearCandidates.sortBy { it.first }
+                val nearOut = JSONArray()
+                for (i in 0 until min(nearCandidates.size, NEAR_LAYER_CAP)) {
+                    nearOut.put(nearCandidates[i].second)
+                }
+
                 val fc = JSONObject()
                     .put("type", "FeatureCollection")
-                    .put("features", nearbyFeatures)
+                    .put("features", nearOut)
                 val fcStr = fc.toString()
                 val headingSnapshot = heading
                 val useConeSnapshot = useCone
@@ -519,13 +589,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     riverItems.addAll(display)
                     if (display.isEmpty()) {
                         val status = if (useConeSnapshot && headingSnapshot != null) {
-                            getString(
-                                R.string.no_ahead,
-                                cardinalLabel(headingSnapshot),
-                                NEARBY_KM.toInt()
-                            )
+                            "可视区域内${cardinalLabel(headingSnapshot)}方向暂无河段"
                         } else {
-                            getString(R.string.no_nearby, NEARBY_KM.toInt())
+                            "当前可视区域内暂无河段"
                         }
                         riverAdapter.setStatus(status)
                     } else {
@@ -923,6 +989,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val HEADING_DELTA_DEG = 8.0
         private const val FILTER_THROTTLE_MS = 750L
         private const val LIST_LIMIT = 12
+        private const val NEAR_LAYER_CAP = 400
         private const val STYLE_ASSET = "style-dark.json"
         private const val MBTILES_FILE = "sichuan-basemap.mbtiles"
         private const val HYDRO_ASSET = "hydrorivers_sichuan.geojson"
