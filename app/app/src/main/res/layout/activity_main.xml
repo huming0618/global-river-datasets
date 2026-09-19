@@ -114,7 +114,7 @@
             <ListView
                 android:id="@+id/riverListView"
                 android:layout_width="match_parent"
-                android:layout_height="160dp"
+                android:layout_height="240dp"
                 android:layout_marginTop="4dp"
                 android:divider="@color/md_muted"
                 android:dividerHeight="0.5dp"

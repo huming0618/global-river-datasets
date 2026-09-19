@@ -65,9 +65,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val displayName: String,
         val distanceKm: Double,
         val bearingDeg: Double,
-        val feature: JSONObject,
+        /** All matching segments in the current cone/nearby set (for amber highlight). */
+        val features: List<JSONObject>,
         val nearestLat: Double,
-        val nearestLon: Double
+        val nearestLon: Double,
+        val segmentCount: Int
     )
 
     private lateinit var mapView: MapView
@@ -453,17 +455,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                     nearbyFeatures.put(featureObj)
                     val props = featureObj.optJSONObject("properties")
-                    val key = featureKey(props, sourceTag, index)
-                    val displayName = displayNameFor(props, sourceTag, key)
+                    val displayName = displayNameFor(props, sourceTag, featureKey(props, sourceTag, index))
+                    val key = identityKey(props, sourceTag, index, displayName)
                     ranked.add(
                         RiverItem(
                             key = key,
                             displayName = displayName,
                             distanceKm = minKm,
                             bearingDeg = bearing,
-                            feature = featureObj,
+                            features = listOf(featureObj),
                             nearestLat = nearest.first,
-                            nearestLon = nearest.second
+                            nearestLon = nearest.second,
+                            segmentCount = 1
                         )
                     )
                 }
@@ -480,23 +483,27 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         .thenByDescending { hasRealName(it.displayName) }
                 )
 
-                // Prefer named rivers in display: stable unique by displayName+key, cap list
-                val seenKeys = LinkedHashSet<String>()
-                val display = mutableListOf<RiverItem>()
-                // Pass 1: named first among sorted
+                // Aggregate: one row per real river name; unnamed stay unique by segment id
+                val groups = LinkedHashMap<String, MutableList<RiverItem>>()
                 for (item in ranked) {
-                    if (!hasRealName(item.displayName)) continue
-                    if (seenKeys.add(item.key)) display.add(item)
-                    if (display.size >= LIST_LIMIT) break
+                    groups.getOrPut(item.key) { mutableListOf() }.add(item)
                 }
-                if (display.size < LIST_LIMIT) {
-                    for (item in ranked) {
-                        if (seenKeys.add(item.key)) display.add(item)
-                        if (display.size >= LIST_LIMIT) break
-                    }
+                val aggregated = mutableListOf<RiverItem>()
+                for ((_, segs) in groups) {
+                    val nearest = segs.minBy { it.distanceKm }
+                    val allFeatures = segs.flatMap { it.features }
+                    aggregated.add(
+                        nearest.copy(
+                            features = allFeatures,
+                            segmentCount = allFeatures.size
+                        )
+                    )
                 }
-                // Re-sort final display by distance
-                display.sortBy { it.distanceKm }
+                aggregated.sortWith(
+                    compareBy<RiverItem> { it.distanceKm }
+                        .thenByDescending { hasRealName(it.displayName) }
+                )
+                val display = aggregated.take(LIST_LIMIT).toMutableList()
 
                 val fc = JSONObject()
                     .put("type", "FeatureCollection")
@@ -522,11 +529,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         }
                         riverAdapter.setStatus(status)
                     } else {
-                        // Keep selection if still in list
-                        val stillSelected = selectedKey != null &&
-                            display.any { it.key == selectedKey }
-                        if (!stillSelected && selectedKey != null) {
+                        // Keep selection if still in list; refresh amber features
+                        val still = display.firstOrNull { it.key == selectedKey }
+                        if (selectedKey != null && still == null) {
                             clearSelection(updateList = false)
+                        } else if (still != null) {
+                            val arr = JSONArray()
+                            for (f in still.features) arr.put(f)
+                            val selFc = JSONObject()
+                                .put("type", "FeatureCollection")
+                                .put("features", arr)
+                            (style.getSource(SOURCE_SELECTED) as? GeoJsonSource)
+                                ?.setGeoJson(selFc.toString())
                         }
                         riverAdapter.setItems(display, selectedKey)
                     }
@@ -547,6 +561,20 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             !name.startsWith("未命名") &&
             !name.startsWith("HydroRIVERS") &&
             !name.startsWith("OSM ")
+    }
+
+    /** Named rivers group by trimmed name; unnamed stay unique by HYRIV_ID / osm_id. */
+    private fun identityKey(
+        props: JSONObject?,
+        sourceTag: String,
+        index: Int,
+        displayName: String
+    ): String {
+        val raw = props?.optString("name").orEmpty().trim()
+        if (raw.isNotBlank() && hasRealName(raw)) {
+            return "name:" + raw.lowercase()
+        }
+        return featureKey(props, sourceTag, index)
     }
 
     private fun featureKey(props: JSONObject?, sourceTag: String, index: Int): String {
@@ -577,18 +605,20 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         btnClearSelection.visibility = View.VISIBLE
         riverAdapter.setItems(riverItems.toList(), selectedKey)
 
+        val featuresArr = JSONArray()
+        for (f in item.features) featuresArr.put(f)
         val fc = JSONObject()
             .put("type", "FeatureCollection")
-            .put("features", JSONArray().put(item.feature))
+            .put("features", featuresArr)
         val style = mapLibreMap?.style
         (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(fc.toString())
 
-        // Pan/zoom to show user + selected river nearest point
+        // Pan/zoom to show user + nearest point of the river group
         try {
-            val bounds = LatLngBounds.Builder()
+            val builder = LatLngBounds.Builder()
                 .include(userLatLng)
                 .include(LatLng(item.nearestLat, item.nearestLon))
-                .build()
+            val bounds = builder.build()
             mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
         } catch (_: Exception) {
             mapLibreMap?.animateCamera(
@@ -859,11 +889,20 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     if (item.key == selected) R.color.md_amber else R.color.md_on_dark
                 )
             )
-            metaView.text = "%.1f km  ·  %.0f° %s".format(
-                item.distanceKm,
-                item.bearingDeg,
-                cardinalLabel(item.bearingDeg.toFloat())
-            )
+            metaView.text = if (item.segmentCount > 1) {
+                "%.1f km  ·  %.0f° %s  ·  %d段".format(
+                    item.distanceKm,
+                    item.bearingDeg,
+                    cardinalLabel(item.bearingDeg.toFloat()),
+                    item.segmentCount
+                )
+            } else {
+                "%.1f km  ·  %.0f° %s".format(
+                    item.distanceKm,
+                    item.bearingDeg,
+                    cardinalLabel(item.bearingDeg.toFloat())
+                )
+            }
             view.setBackgroundColor(
                 if (item.key == selected) {
                     ContextCompat.getColor(this@MainActivity, R.color.md_selected_bg)
@@ -880,7 +919,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val DEFAULT_ZOOM = 8.5
         private const val NEAR_ZOOM = 10.5
         private const val NEARBY_KM = 40.0
-        private const val CONE_HALF_DEG = 40.0
+        private const val CONE_HALF_DEG = 50.0
         private const val HEADING_DELTA_DEG = 8.0
         private const val FILTER_THROTTLE_MS = 750L
         private const val LIST_LIMIT = 12
