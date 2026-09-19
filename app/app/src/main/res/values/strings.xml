@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">离线河网地图</string>
+    <string name="nearby_rivers_title">附近河流</string>
+    <string name="locating">正在定位…</string>
+    <string name="location_denied">未授予定位权限，已默认显示成都中心</string>
+    <string name="location_failed">定位失败，已默认显示成都中心</string>
+    <string name="no_nearby">附近约 %1$d 公里内未匹配到示意河段</string>
+    <string name="recenter">回到当前位置</string>
+    <string name="offline_hint">离线示意数据 · 成都周边</string>
+</resources>

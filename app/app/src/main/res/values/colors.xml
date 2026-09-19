@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="md_dark_bg">#0B1220</color>
+    <color name="md_dark_surface">#121A2B</color>
+    <color name="md_cyan">#00E5FF</color>
+    <color name="md_cyan_dim">#4FC3F7</color>
+    <color name="md_on_dark">#E8EEF8</color>
+    <color name="md_muted">#8A9BB8</color>
+    <color name="ic_launcher_bg">#0B1220</color>
+</resources>

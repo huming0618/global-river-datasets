@@ -1,0 +1,72 @@
+{
+  "version": 8,
+  "name": "Dark Offline Basemap",
+  "glyphs": "",
+  "sources": {
+    "land": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": {},
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [[
+                [103.0, 29.8], [105.2, 29.8], [105.2, 31.5], [103.0, 31.5], [103.0, 29.8]
+              ]]
+            }
+          }
+        ]
+      }
+    },
+    "water-bodies": {
+      "type": "geojson",
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "properties": { "name": "示例水域" },
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [[
+                [104.02, 30.62], [104.10, 30.62], [104.10, 30.70], [104.02, 30.70], [104.02, 30.62]
+              ]]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": { "background-color": "#0b1220" }
+    },
+    {
+      "id": "land-fill",
+      "type": "fill",
+      "source": "land",
+      "paint": { "fill-color": "#121a2b", "fill-opacity": 1 }
+    },
+    {
+      "id": "water-fill",
+      "type": "fill",
+      "source": "water-bodies",
+      "paint": { "fill-color": "#1a2740", "fill-opacity": 0.85 }
+    },
+    {
+      "id": "grid-hint",
+      "type": "line",
+      "source": "land",
+      "paint": {
+        "line-color": "#1e2a44",
+        "line-width": 0.5,
+        "line-opacity": 0.4
+      }
+    }
+  ]
+}

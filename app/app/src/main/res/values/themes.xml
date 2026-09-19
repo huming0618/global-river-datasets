@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.OfflineRiverMap" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/md_cyan</item>
+        <item name="colorSecondary">@color/md_cyan_dim</item>
+        <item name="android:statusBarColor">@color/md_dark_bg</item>
+        <item name="android:navigationBarColor">@color/md_dark_bg</item>
+        <item name="android:windowBackground">@color/md_dark_bg</item>
+        <item name="colorSurface">@color/md_dark_surface</item>
+        <item name="colorOnPrimary">@color/md_dark_bg</item>
+        <item name="colorOnSurface">@color/md_on_dark</item>
+    </style>
+</resources>

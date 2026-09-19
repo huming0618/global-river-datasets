@@ -49,6 +49,13 @@ python3 scripts/validate_catalog.py
 3. 运行校验脚本确认通过。
 4. 如需，更新 `docs/guide.md` 与本 README 的分类表。
 
+## Android 离线河网示例应用
+
+仓库内 [`app/`](app/) 提供基于 MapLibre 的 **离线 Android 示例**：深色底图、亮青色河网、按 GPS 筛选成都周边示意河流。
+
+- 说明与构建步骤见 [app/README.md](app/README.md)
+- 用 Android Studio 打开 `app/` 目录，或执行 `cd app && ./gradlew assembleDebug`
+
 ## 许可
 
 本仓库文档与目录元数据采用 [CC BY 4.0](LICENSE)。第三方原始数据的权利仍归各提供方，本仓库不二次分发。
