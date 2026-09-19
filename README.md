@@ -55,6 +55,7 @@ python3 scripts/validate_catalog.py
 
 - 真实 **HydroRIVERS**（四川裁剪，`ORD_STRA ≥ 2`）+ **OSM** 水道补层
 - 深色 **离线 MBTiles** 底图（OpenMapTiles / Planetiler，z6–z12，约 74 MB，不进 Git）
+- **朝向感知前方河流列表**（罗盘/旋转矢量）+ 点选琥珀色高亮（v0.3）
 - 说明、许可与再生管线见 [app/README.md](app/README.md)；脚本：`scripts/build_sichuan_offline.sh`、`scripts/fetch_sichuan_basemap.sh`
 - 构建：`cd app && ./gradlew assembleDebug`（需先准备 `assets/sichuan-basemap.mbtiles`）
 

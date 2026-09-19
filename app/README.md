@@ -1,6 +1,6 @@
 # 四川离线河网地图（Android）
 
-基于 **MapLibre Native** 的纯离线示例：深色 OpenMapTiles 底图（MBTiles）+ **HydroRIVERS** 亮青色河网 + **OSM** 水色补线，按 GPS 筛选当前位置附近河段。
+基于 **MapLibre Native** 的纯离线示例：深色 OpenMapTiles 底图（MBTiles）+ **HydroRIVERS** 亮青色河网 + **OSM** 水色补线，按 GPS 与设备朝向筛选**前方锥形**内的河段，并可点选高亮。
 
 打开本目录（`app/`）即可用 Android Studio 导入工程。
 
@@ -9,8 +9,17 @@
 - **完全离线底图**：`assets/sichuan-basemap.mbtiles`（四川省约 bbox，z6–z12，OpenMapTiles / Planetiler），运行时复制到应用私有目录，经 `mbtiles://` 加载；样式无网络瓦片 URL。
 - **HydroRIVERS 河网**：`assets/hydrorivers_sichuan.geojson.gz（构建时 AGP 解压为 .geojson）`（Asia 裁剪至四川，**ORD_STRA ≥ 2**，适度简化）。
 - **OSM 水道补层**：`assets/osm_waterways_sichuan.geojson.gz（构建时 AGP 解压为 .geojson）`（river/canal + 有名称 stream），更细线、略偏青绿。
-- **定位与附近筛选**：约 **40 km**；后台线程 + bbox 预过滤，避免在 UI 线程扫全量河段。
+- **朝向感知列表（v0.3）**：使用 `Sensor.TYPE_ROTATION_VECTOR`（或回退 `TYPE_ORIENTATION` / 游戏旋转矢量）读取设备方位角；顶部显示朝向度数 + 东南西北。列表仅保留用户朝向前方锥形（默认 **±40°**）且半径约 **40 km** 内的河段，按距离由近到远；有 `name` 时优先展示河名，否则显示 `未命名河段 · #HYRIV_ID` / OSM 类型。朝向变化约 ≥8° 或位置更新时节流重算（约 0.5–1 s），空间查询在后台线程执行。
+- **点选高亮**：点击列表项后，该河段以**琥珀色**（`#FFB300` + 橙光晕）叠加显示，与默认青色/青色附近高亮明显区分；可「清除选中」；选中时地图会平移/缩放到覆盖当前位置与河段最近点。
+- **罗盘缺失回退**：无磁力计/旋转矢量时提示，并按距离列出附近河段（不按锥形过滤）。
 - 默认中心：成都 **30.67°N, 104.06°E**。
+
+## 权限说明
+
+| 能力 | 权限 | 说明 |
+|------|------|------|
+| GPS 定位 | `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` | 仍需用户授权；拒绝则回退成都默认点 |
+| 罗盘 / 朝向 | **无需额外运行时权限** | 使用系统传感器；室内磁场干扰可能导致漂移 |
 
 ## 地理范围
 
@@ -92,17 +101,21 @@ SKIP_BASEMAP=1 ./scripts/build_sichuan_offline.sh
 | 底图道路 / 水域 / 边界 | 深色灰蓝 | MBTiles vector |
 | OSM waterways | `#4DD0E1` 细线 | 地名补全、人工渠等 |
 | HydroRIVERS | `#26C6DA` | 主河网 |
-| 附近高亮 | `#00E5FF` + glow | 距离筛选结果 |
+| 前方/附近高亮 | `#00E5FF` + glow | 锥形+距离筛选结果（青色） |
+| **选中河段** | `#FFB300` + `#FF6D00` glow | 列表点选，琥珀色，与青色区分 |
 
 ## 技术栈
 
 - Kotlin + AndroidX Material 深色主题
 - MapLibre Android OpenGL（`org.maplibre.gl:android-sdk-opengl` 11.x）
 - Google Play Services Location（不可用时回退成都默认点）
+- Android `SensorManager`（旋转矢量 / 方位角）
 
 ## 局限
 
 - 底图无文字注记（未捆绑 glyphs）；河名依赖 OSM `name` 或 HydroRIVERS 高序占位名。
-- HydroRIVERS 本身无官方中文河名；附近列表对无名河段显示序级/类型。
+- HydroRIVERS 本身无官方中文河名；列表对无名河段显示 `未命名河段 · #HYRIV_ID`。
 - 首次启动会将 ~74 MB MBTiles 复制到内部存储（仅一次）。
 - 无 GMS 设备仍可离线浏览默认成都视图。
+- **室内或金属环境**下磁力计易漂移，朝向与前方列表可能不稳定；到户外空旷处校准更准。
+- 距离为河段顶点采样近似，非严格垂足距离；锥形以最近点方位相对朝向判定。

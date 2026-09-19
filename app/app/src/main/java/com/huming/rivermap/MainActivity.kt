@@ -2,12 +2,24 @@ package com.huming.rivermap
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Color
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.BaseAdapter
+import android.widget.Button
+import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +35,7 @@ import org.json.JSONObject
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
@@ -36,6 +49,8 @@ import org.maplibre.android.style.sources.GeoJsonSource
 import java.io.File
 import java.io.FileOutputStream
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -43,11 +58,24 @@ import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), SensorEventListener {
+
+    data class RiverItem(
+        val key: String,
+        val displayName: String,
+        val distanceKm: Double,
+        val bearingDeg: Double,
+        val feature: JSONObject,
+        val nearestLat: Double,
+        val nearestLon: Double
+    )
 
     private lateinit var mapView: MapView
     private lateinit var nearbyList: TextView
     private lateinit var hintText: TextView
+    private lateinit var headingText: TextView
+    private lateinit var riverListView: ListView
+    private lateinit var btnClearSelection: Button
     private var mapLibreMap: MapLibreMap? = null
     private var userLatLng: LatLng = DEFAULT_CENTER
     private var hasPreciseLocation: Boolean = false
@@ -57,6 +85,22 @@ class MainActivity : AppCompatActivity() {
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val filterInFlight = AtomicBoolean(false)
+    private var pendingFilter = false
+
+    private var sensorManager: SensorManager? = null
+    private var rotationSensor: Sensor? = null
+    private var orientationSensor: Sensor? = null
+    private var hasCompass: Boolean = false
+    private var currentHeadingDeg: Float? = null
+    private var lastPublishedHeading: Float? = null
+    private var lastFilterElapsedMs: Long = 0L
+    private val rotationMatrix = FloatArray(9)
+    private val orientationAngles = FloatArray(3)
+
+    private val riverItems = mutableListOf<RiverItem>()
+    private var selectedKey: String? = null
+    private lateinit var riverAdapter: RiverListAdapter
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -78,13 +122,29 @@ class MainActivity : AppCompatActivity() {
         mapView = findViewById(R.id.mapView)
         nearbyList = findViewById(R.id.nearbyList)
         hintText = findViewById(R.id.hintText)
+        headingText = findViewById(R.id.headingText)
+        riverListView = findViewById(R.id.riverListView)
+        btnClearSelection = findViewById(R.id.btnClearSelection)
+
+        riverAdapter = RiverListAdapter()
+        riverListView.adapter = riverAdapter
+        riverListView.setOnItemClickListener { _, _, position, _ ->
+            if (position in riverItems.indices) {
+                selectRiver(riverItems[position])
+            }
+        }
+        btnClearSelection.setOnClickListener { clearSelection() }
+
         findViewById<FloatingActionButton>(R.id.fabRecenter).setOnClickListener {
             mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, NEAR_ZOOM))
-            applySpatialFilterAsync(userLatLng)
+            scheduleForwardFilter(force = true)
         }
+
+        initCompass()
 
         mapView.onCreate(savedInstanceState)
         nearbyList.text = getString(R.string.loading_rivers)
+        riverAdapter.setStatus(getString(R.string.loading_rivers))
         mapView.getMapAsync { map ->
             mapLibreMap = map
             map.uiSettings.isAttributionEnabled = true
@@ -104,8 +164,20 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun initCompass() {
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val sm = sensorManager ?: return
+        rotationSensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
+            ?: sm.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
+        orientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION)
+        hasCompass = rotationSensor != null || orientationSensor != null
+        if (!hasCompass) {
+            headingText.text = getString(R.string.heading_unknown)
+            Snackbar.make(mapView, getString(R.string.compass_unavailable), Snackbar.LENGTH_LONG).show()
+        }
+    }
+
     private fun mbtilesUri(file: File): String {
-        // MapLibre expects mbtiles:// + absolute path (three slashes for Unix abs paths).
         return "mbtiles://" + file.absolutePath
     }
 
@@ -140,7 +212,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("MissingPermission")
     private fun requestLocation() {
         if (!riversReady) {
-            nearbyList.text = getString(R.string.loading_rivers)
+            riverAdapter.setStatus(getString(R.string.loading_rivers))
         }
         val client = LocationServices.getFusedLocationProviderClient(this)
         val cts = CancellationTokenSource()
@@ -195,17 +267,32 @@ class MainActivity : AppCompatActivity() {
                 // Location component optional if Play Services unavailable
             }
         }
-        applySpatialFilterAsync(userLatLng)
+        scheduleForwardFilter(force = true)
         updateHint()
+        updateHeadingUi()
     }
 
     private fun updateHint() {
         val lat = "%.4f".format(userLatLng.latitude)
         val lon = "%.4f".format(userLatLng.longitude)
         hintText.text = if (hasPreciseLocation) {
-            "四川离线河网 · 当前位置 $lat, $lon · 附近 ${NEARBY_KM.toInt()} km"
+            "四川离线河网 · 当前位置 $lat, $lon · 半径 ${NEARBY_KM.toInt()} km"
         } else {
-            "四川离线河网 · 默认成都 $lat, $lon · 附近 ${NEARBY_KM.toInt()} km"
+            "四川离线河网 · 默认成都 $lat, $lon · 半径 ${NEARBY_KM.toInt()} km"
+        }
+    }
+
+    private fun updateHeadingUi() {
+        val h = currentHeadingDeg
+        if (h == null || !hasCompass) {
+            headingText.text = getString(R.string.heading_unknown)
+        } else {
+            headingText.text = getString(
+                R.string.heading_fmt,
+                h,
+                cardinalLabel(h),
+                CONE_HALF_DEG.toInt()
+            )
         }
     }
 
@@ -221,7 +308,6 @@ class MainActivity : AppCompatActivity() {
                 mainHandler.post {
                     if (isDestroyed) return@post
                     val liveStyle = mapLibreMap?.style ?: style
-                    // OSM supplement (thinner / teal)
                     liveStyle.addSource(GeoJsonSource(SOURCE_OSM, osmJson))
                     liveStyle.addLayer(
                         LineLayer(LAYER_OSM, SOURCE_OSM).withProperties(
@@ -232,7 +318,6 @@ class MainActivity : AppCompatActivity() {
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                         )
                     )
-                    // HydroRIVERS primary (cyan)
                     liveStyle.addSource(GeoJsonSource(SOURCE_HYDRO, hydroJson))
                     liveStyle.addLayer(
                         LineLayer(LAYER_HYDRO, SOURCE_HYDRO).withProperties(
@@ -263,13 +348,34 @@ class MainActivity : AppCompatActivity() {
                         ),
                         LAYER_NEAR
                     )
+                    // Selected river highlight (amber — distinct from cyan/teal)
+                    liveStyle.addSource(GeoJsonSource(SOURCE_SELECTED, emptyFeatureCollection()))
+                    liveStyle.addLayer(
+                        LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
+                            PropertyFactory.lineColor(Color.parseColor("#FFB300")),
+                            PropertyFactory.lineWidth(7.0f),
+                            PropertyFactory.lineOpacity(1.0f),
+                            PropertyFactory.lineBlur(0.2f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        )
+                    )
+                    liveStyle.addLayerBelow(
+                        LineLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
+                            PropertyFactory.lineColor(Color.parseColor("#FF6D00")),
+                            PropertyFactory.lineWidth(14.0f),
+                            PropertyFactory.lineOpacity(0.35f),
+                            PropertyFactory.lineBlur(1.5f)
+                        ),
+                        LAYER_SELECTED
+                    )
                     riversReady = true
-                    applySpatialFilterAsync(userLatLng)
+                    scheduleForwardFilter(force = true)
                     updateHint()
                 }
             } catch (e: Exception) {
                 mainHandler.post {
-                    nearbyList.text = getString(R.string.rivers_load_failed)
+                    riverAdapter.setStatus(getString(R.string.rivers_load_failed))
                     Toast.makeText(this, e.message ?: "load failed", Toast.LENGTH_LONG).show()
                 }
             }
@@ -277,83 +383,230 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun readAssetText(name: String): String {
-        // AGP decompresses *.geojson.gz into assets/*.geojson at merge time.
         assets.open(name).bufferedReader().use { return it.readText() }
     }
 
-    private fun applySpatialFilterAsync(center: LatLng) {
-        if (!riversReady) {
-            nearbyList.text = getString(R.string.loading_rivers)
+    private fun scheduleForwardFilter(force: Boolean = false) {
+        val now = SystemClock.elapsedRealtime()
+        if (!force && now - lastFilterElapsedMs < FILTER_THROTTLE_MS) {
+            pendingFilter = true
+            mainHandler.removeCallbacks(delayedFilterRunnable)
+            mainHandler.postDelayed(delayedFilterRunnable, FILTER_THROTTLE_MS - (now - lastFilterElapsedMs))
             return
         }
-        nearbyList.text = getString(R.string.filtering_rivers)
+        pendingFilter = false
+        lastFilterElapsedMs = now
+        applyForwardConeFilterAsync()
+    }
+
+    private val delayedFilterRunnable = Runnable {
+        if (pendingFilter || true) {
+            pendingFilter = false
+            lastFilterElapsedMs = SystemClock.elapsedRealtime()
+            applyForwardConeFilterAsync()
+        }
+    }
+
+    private fun applyForwardConeFilterAsync() {
+        if (!riversReady) {
+            riverAdapter.setStatus(getString(R.string.loading_rivers))
+            return
+        }
+        if (!filterInFlight.compareAndSet(false, true)) {
+            pendingFilter = true
+            return
+        }
+        riverAdapter.setStatus(getString(R.string.filtering_rivers))
+        val center = userLatLng
+        val heading = currentHeadingDeg
+        val useCone = hasCompass && heading != null
         ioExecutor.execute {
-            val padDeg = NEARBY_KM / 111.0
-            val minLat = center.latitude - padDeg
-            val maxLat = center.latitude + padDeg
-            val cosLat = cos(Math.toRadians(center.latitude)).coerceAtLeast(0.2)
-            val minLon = center.longitude - padDeg / cosLat
-            val maxLon = center.longitude + padDeg / cosLat
+            try {
+                val padDeg = NEARBY_KM / 111.0
+                val minLat = center.latitude - padDeg
+                val maxLat = center.latitude + padDeg
+                val cosLat = cos(Math.toRadians(center.latitude)).coerceAtLeast(0.2)
+                val minLon = center.longitude - padDeg / cosLat
+                val maxLon = center.longitude + padDeg / cosLat
 
-            val nearby = JSONArray()
-            val ranked = mutableListOf<Pair<String, Double>>()
+                val nearbyFeatures = JSONArray()
+                val ranked = mutableListOf<RiverItem>()
 
-            fun consider(feature: JSONArray, index: Int, sourceLabel: String) {
-                val featureObj = feature.getJSONObject(index)
-                val geom = featureObj.getJSONObject("geometry")
-                val coords = geom.getJSONArray("coordinates")
-                val type = geom.optString("type")
-                if (!bboxIntersects(type, coords, minLon, minLat, maxLon, maxLat)) return
-                val minKm = minDistanceKm(center, type, coords)
-                if (minKm <= NEARBY_KM) {
-                    nearby.put(featureObj)
+                fun consider(features: JSONArray, index: Int, sourceTag: String) {
+                    val featureObj = features.getJSONObject(index)
+                    val geom = featureObj.getJSONObject("geometry")
+                    val coords = geom.getJSONArray("coordinates")
+                    val type = geom.optString("type")
+                    if (!bboxIntersects(type, coords, minLon, minLat, maxLon, maxLat)) return
+                    val nearest = nearestPointOnGeometry(center, type, coords) ?: return
+                    val minKm = nearest.third
+                    if (minKm > NEARBY_KM) return
+
+                    val bearing = bearingDegrees(
+                        center.latitude, center.longitude,
+                        nearest.first, nearest.second
+                    )
+                    if (useCone) {
+                        val delta = angularDiffDeg(heading!!.toDouble(), bearing)
+                        if (delta > CONE_HALF_DEG) return
+                    }
+
+                    nearbyFeatures.put(featureObj)
                     val props = featureObj.optJSONObject("properties")
-                    var name = props?.optString("name").orEmpty()
-                    if (name.isBlank()) {
-                        val ord = props?.optInt("ORD_STRA", 0) ?: 0
-                        val ww = props?.optString("waterway").orEmpty()
-                        name = when {
-                            ord > 0 -> "HydroRIVERS 河段(序$ord)"
-                            ww.isNotBlank() -> "OSM $ww"
-                            else -> sourceLabel
+                    val key = featureKey(props, sourceTag, index)
+                    val displayName = displayNameFor(props, sourceTag, key)
+                    ranked.add(
+                        RiverItem(
+                            key = key,
+                            displayName = displayName,
+                            distanceKm = minKm,
+                            bearingDeg = bearing,
+                            feature = featureObj,
+                            nearestLat = nearest.first,
+                            nearestLon = nearest.second
+                        )
+                    )
+                }
+
+                for (i in 0 until hydroFeatures.length()) {
+                    consider(hydroFeatures, i, "hydro")
+                }
+                for (i in 0 until osmFeatures.length()) {
+                    consider(osmFeatures, i, "osm")
+                }
+
+                ranked.sortWith(
+                    compareBy<RiverItem> { it.distanceKm }
+                        .thenByDescending { hasRealName(it.displayName) }
+                )
+
+                // Prefer named rivers in display: stable unique by displayName+key, cap list
+                val seenKeys = LinkedHashSet<String>()
+                val display = mutableListOf<RiverItem>()
+                // Pass 1: named first among sorted
+                for (item in ranked) {
+                    if (!hasRealName(item.displayName)) continue
+                    if (seenKeys.add(item.key)) display.add(item)
+                    if (display.size >= LIST_LIMIT) break
+                }
+                if (display.size < LIST_LIMIT) {
+                    for (item in ranked) {
+                        if (seenKeys.add(item.key)) display.add(item)
+                        if (display.size >= LIST_LIMIT) break
+                    }
+                }
+                // Re-sort final display by distance
+                display.sortBy { it.distanceKm }
+
+                val fc = JSONObject()
+                    .put("type", "FeatureCollection")
+                    .put("features", nearbyFeatures)
+                val fcStr = fc.toString()
+                val headingSnapshot = heading
+                val useConeSnapshot = useCone
+                mainHandler.post {
+                    if (isDestroyed) return@post
+                    val style = mapLibreMap?.style ?: return@post
+                    (style.getSource(SOURCE_NEAR) as? GeoJsonSource)?.setGeoJson(fcStr)
+                    riverItems.clear()
+                    riverItems.addAll(display)
+                    if (display.isEmpty()) {
+                        val status = if (useConeSnapshot && headingSnapshot != null) {
+                            getString(
+                                R.string.no_ahead,
+                                cardinalLabel(headingSnapshot),
+                                NEARBY_KM.toInt()
+                            )
+                        } else {
+                            getString(R.string.no_nearby, NEARBY_KM.toInt())
                         }
+                        riverAdapter.setStatus(status)
+                    } else {
+                        // Keep selection if still in list
+                        val stillSelected = selectedKey != null &&
+                            display.any { it.key == selectedKey }
+                        if (!stillSelected && selectedKey != null) {
+                            clearSelection(updateList = false)
+                        }
+                        riverAdapter.setItems(display, selectedKey)
                     }
-                    ranked.add(name to minKm)
+                    updateHeadingUi()
+                }
+            } finally {
+                filterInFlight.set(false)
+                if (pendingFilter) {
+                    pendingFilter = false
+                    mainHandler.post { scheduleForwardFilter(force = true) }
                 }
             }
+        }
+    }
 
-            for (i in 0 until hydroFeatures.length()) {
-                consider(hydroFeatures, i, "HydroRIVERS")
-            }
-            for (i in 0 until osmFeatures.length()) {
-                consider(osmFeatures, i, "OSM")
-            }
+    private fun hasRealName(name: String): Boolean {
+        return name.isNotBlank() &&
+            !name.startsWith("未命名") &&
+            !name.startsWith("HydroRIVERS") &&
+            !name.startsWith("OSM ")
+    }
 
-            ranked.sortBy { it.second }
-            // Deduplicate display names keeping closest
-            val seen = LinkedHashSet<String>()
-            val display = mutableListOf<Pair<String, Double>>()
-            for (item in ranked) {
-                if (seen.add(item.first)) display.add(item)
-                if (display.size >= 10) break
+    private fun featureKey(props: JSONObject?, sourceTag: String, index: Int): String {
+        if (props != null) {
+            val hydroId = props.opt("HYRIV_ID")
+            if (hydroId != null && hydroId.toString().isNotBlank() && hydroId.toString() != "null") {
+                return "hydro:$hydroId"
             }
+            val osmId = props.optString("osm_id")
+            if (osmId.isNotBlank()) return "osm:$osmId"
+        }
+        return "$sourceTag#$index"
+    }
 
-            val fc = JSONObject()
-                .put("type", "FeatureCollection")
-                .put("features", nearby)
-            val fcStr = fc.toString()
-            mainHandler.post {
-                if (isDestroyed) return@post
-                val style = mapLibreMap?.style ?: return@post
-                (style.getSource(SOURCE_NEAR) as? GeoJsonSource)?.setGeoJson(fcStr)
-                if (display.isEmpty()) {
-                    nearbyList.text = getString(R.string.no_nearby, NEARBY_KM.toInt())
-                } else {
-                    nearbyList.text = display.joinToString("\n") { (name, km) ->
-                        "• $name  ·  ${"%.1f".format(km)} km"
-                    }
-                }
-            }
+    private fun displayNameFor(props: JSONObject?, sourceTag: String, key: String): String {
+        val name = props?.optString("name").orEmpty().trim()
+        if (name.isNotBlank()) return name
+        if (sourceTag == "hydro") {
+            val id = props?.opt("HYRIV_ID")?.toString() ?: key.removePrefix("hydro:")
+            return "未命名河段 · #$id"
+        }
+        val ww = props?.optString("waterway").orEmpty()
+        return if (ww.isNotBlank()) "OSM $ww" else "未命名水道"
+    }
+
+    private fun selectRiver(item: RiverItem) {
+        selectedKey = item.key
+        btnClearSelection.visibility = View.VISIBLE
+        riverAdapter.setItems(riverItems.toList(), selectedKey)
+
+        val fc = JSONObject()
+            .put("type", "FeatureCollection")
+            .put("features", JSONArray().put(item.feature))
+        val style = mapLibreMap?.style
+        (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(fc.toString())
+
+        // Pan/zoom to show user + selected river nearest point
+        try {
+            val bounds = LatLngBounds.Builder()
+                .include(userLatLng)
+                .include(LatLng(item.nearestLat, item.nearestLon))
+                .build()
+            mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
+        } catch (_: Exception) {
+            mapLibreMap?.animateCamera(
+                CameraUpdateFactory.newLatLngZoom(
+                    LatLng(item.nearestLat, item.nearestLon),
+                    NEAR_ZOOM
+                )
+            )
+        }
+    }
+
+    private fun clearSelection(updateList: Boolean = true) {
+        selectedKey = null
+        btnClearSelection.visibility = View.GONE
+        val style = mapLibreMap?.style
+        (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(emptyFeatureCollection())
+        if (updateList) {
+            riverAdapter.setItems(riverItems.toList(), null)
         }
     }
 
@@ -390,14 +643,26 @@ class MainActivity : AppCompatActivity() {
         return !(fMaxLon < minLon || fMinLon > maxLon || fMaxLat < minLat || fMinLat > maxLat)
     }
 
-    private fun minDistanceKm(center: LatLng, type: String, coords: JSONArray): Double {
+    /** Returns Triple(lat, lon, distanceKm) of nearest sampled vertex. */
+    private fun nearestPointOnGeometry(
+        center: LatLng,
+        type: String,
+        coords: JSONArray
+    ): Triple<Double, Double, Double>? {
+        var bestLat = 0.0
+        var bestLon = 0.0
         var best = Double.MAX_VALUE
         fun considerPoint(c: JSONArray) {
-            val d = haversineKm(center.latitude, center.longitude, c.getDouble(1), c.getDouble(0))
-            if (d < best) best = d
+            val lon = c.getDouble(0)
+            val lat = c.getDouble(1)
+            val d = haversineKm(center.latitude, center.longitude, lat, lon)
+            if (d < best) {
+                best = d
+                bestLat = lat
+                bestLon = lon
+            }
         }
         fun considerLine(line: JSONArray) {
-            // Sample vertices; for short segments this approximates closest approach well enough.
             val step = when {
                 line.length() > 40 -> 3
                 line.length() > 20 -> 2
@@ -415,8 +680,10 @@ class MainActivity : AppCompatActivity() {
             "MultiLineString" -> {
                 for (i in 0 until coords.length()) considerLine(coords.getJSONArray(i))
             }
+            else -> return null
         }
-        return best
+        if (best == Double.MAX_VALUE) return null
+        return Triple(bestLat, bestLon, best)
     }
 
     private fun haversineKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -429,8 +696,80 @@ class MainActivity : AppCompatActivity() {
         return 2 * r * atan2(sqrt(a), sqrt(1 - a))
     }
 
+    private fun bearingDegrees(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val φ1 = Math.toRadians(lat1)
+        val φ2 = Math.toRadians(lat2)
+        val Δλ = Math.toRadians(lon2 - lon1)
+        val y = sin(Δλ) * cos(φ2)
+        val x = cos(φ1) * sin(φ2) - sin(φ1) * cos(φ2) * cos(Δλ)
+        val θ = Math.toDegrees(atan2(y, x))
+        return (θ + 360.0) % 360.0
+    }
+
+    private fun angularDiffDeg(a: Double, b: Double): Double {
+        var d = abs(a - b) % 360.0
+        if (d > 180.0) d = 360.0 - d
+        return d
+    }
+
+    private fun cardinalLabel(heading: Float): String {
+        val h = ((heading % 360f) + 360f) % 360f
+        return when {
+            h >= 337.5 || h < 22.5 -> "北"
+            h < 67.5 -> "东北"
+            h < 112.5 -> "东"
+            h < 157.5 -> "东南"
+            h < 202.5 -> "南"
+            h < 247.5 -> "西南"
+            h < 292.5 -> "西"
+            else -> "西北"
+        }
+    }
+
     private fun emptyFeatureCollection(): String =
         """{"type":"FeatureCollection","features":[]}"""
+
+    override fun onSensorChanged(event: SensorEvent?) {
+        if (event == null) return
+        val heading = when (event.sensor.type) {
+            Sensor.TYPE_ROTATION_VECTOR, Sensor.TYPE_GAME_ROTATION_VECTOR -> {
+                SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
+                SensorManager.getOrientation(rotationMatrix, orientationAngles)
+                val azimuthRad = orientationAngles[0]
+                ((Math.toDegrees(azimuthRad.toDouble()) + 360.0) % 360.0).toFloat()
+            }
+            Sensor.TYPE_ORIENTATION -> {
+                ((event.values[0] % 360f) + 360f) % 360f
+            }
+            else -> null
+        } ?: return
+
+        currentHeadingDeg = heading
+        val last = lastPublishedHeading
+        if (last == null || angularDiffDeg(last.toDouble(), heading.toDouble()) >= HEADING_DELTA_DEG) {
+            lastPublishedHeading = heading
+            updateHeadingUi()
+            scheduleForwardFilter(force = false)
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+        // Indoor magnetometer drift is expected; UI still shows last heading.
+    }
+
+    private fun registerSensors() {
+        val sm = sensorManager ?: return
+        rotationSensor?.let {
+            sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        } ?: orientationSensor?.let {
+            @Suppress("DEPRECATION")
+            sm.registerListener(this, it, SensorManager.SENSOR_DELAY_UI)
+        }
+    }
+
+    private fun unregisterSensors() {
+        sensorManager?.unregisterListener(this)
+    }
 
     override fun onStart() {
         super.onStart()
@@ -440,9 +779,11 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         mapView.onResume()
+        registerSensors()
     }
 
     override fun onPause() {
+        unregisterSensors()
         mapView.onPause()
         super.onPause()
     }
@@ -458,6 +799,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(delayedFilterRunnable)
         ioExecutor.shutdownNow()
         mapView.onDestroy()
         super.onDestroy()
@@ -468,11 +810,80 @@ class MainActivity : AppCompatActivity() {
         mapView.onLowMemory()
     }
 
+    private inner class RiverListAdapter : BaseAdapter() {
+        private var items: List<RiverItem> = emptyList()
+        private var selected: String? = null
+        private var statusMessage: String? = null
+
+        fun setItems(list: List<RiverItem>, selectedKey: String?) {
+            items = list
+            selected = selectedKey
+            statusMessage = null
+            notifyDataSetChanged()
+        }
+
+        fun setStatus(msg: String) {
+            items = emptyList()
+            statusMessage = msg
+            notifyDataSetChanged()
+        }
+
+        override fun getCount(): Int =
+            if (statusMessage != null) 1 else items.size
+
+        override fun getItem(position: Int): Any =
+            if (statusMessage != null) statusMessage!! else items[position]
+
+        override fun getItemId(position: Int): Long = position.toLong()
+
+        override fun isEnabled(position: Int): Boolean = statusMessage == null
+
+        override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+            val view = convertView ?: LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_river, parent, false)
+            val nameView = view.findViewById<TextView>(R.id.riverName)
+            val metaView = view.findViewById<TextView>(R.id.riverMeta)
+            val status = statusMessage
+            if (status != null) {
+                nameView.text = status
+                nameView.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.md_muted))
+                metaView.text = ""
+                view.setBackgroundColor(Color.TRANSPARENT)
+                return view
+            }
+            val item = items[position]
+            nameView.text = item.displayName
+            nameView.setTextColor(
+                ContextCompat.getColor(
+                    this@MainActivity,
+                    if (item.key == selected) R.color.md_amber else R.color.md_on_dark
+                )
+            )
+            metaView.text = "%.1f km  ·  %.0f° %s".format(
+                item.distanceKm,
+                item.bearingDeg,
+                cardinalLabel(item.bearingDeg.toFloat())
+            )
+            view.setBackgroundColor(
+                if (item.key == selected) {
+                    ContextCompat.getColor(this@MainActivity, R.color.md_selected_bg)
+                } else {
+                    Color.TRANSPARENT
+                }
+            )
+            return view
+        }
+    }
+
     companion object {
         private val DEFAULT_CENTER = LatLng(30.67, 104.06)
         private const val DEFAULT_ZOOM = 8.5
         private const val NEAR_ZOOM = 10.5
         private const val NEARBY_KM = 40.0
+        private const val CONE_HALF_DEG = 40.0
+        private const val HEADING_DELTA_DEG = 8.0
+        private const val FILTER_THROTTLE_MS = 750L
+        private const val LIST_LIMIT = 12
         private const val STYLE_ASSET = "style-dark.json"
         private const val MBTILES_FILE = "sichuan-basemap.mbtiles"
         private const val HYDRO_ASSET = "hydrorivers_sichuan.geojson"
@@ -480,9 +891,12 @@ class MainActivity : AppCompatActivity() {
         private const val SOURCE_HYDRO = "rivers-hydro"
         private const val SOURCE_OSM = "rivers-osm"
         private const val SOURCE_NEAR = "rivers-near"
+        private const val SOURCE_SELECTED = "rivers-selected"
         private const val LAYER_HYDRO = "rivers-hydro-line"
         private const val LAYER_OSM = "rivers-osm-line"
         private const val LAYER_NEAR = "rivers-near-line"
         private const val LAYER_NEAR_GLOW = "rivers-near-glow"
+        private const val LAYER_SELECTED = "rivers-selected-line"
+        private const val LAYER_SELECTED_GLOW = "rivers-selected-glow"
     }
 }

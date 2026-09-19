@@ -1,14 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">四川离线河网</string>
-    <string name="nearby_rivers_title">附近河流</string>
+    <string name="nearby_rivers_title">前方河流</string>
     <string name="locating">正在定位…</string>
     <string name="loading_rivers">正在加载河网数据…</string>
-    <string name="filtering_rivers">正在筛选附近河段…</string>
+    <string name="filtering_rivers">正在筛选前方河段…</string>
     <string name="rivers_load_failed">河网数据加载失败</string>
     <string name="location_denied">未授予定位权限，已默认显示成都中心</string>
     <string name="location_failed">定位失败，已默认显示成都中心</string>
     <string name="no_nearby">附近约 %1$d 公里内未匹配到河段</string>
+    <string name="no_ahead">朝向 %1$s 前方约 %2$d 公里锥形范围内无河段</string>
     <string name="recenter">回到当前位置</string>
     <string name="offline_hint">四川离线河网 · HydroRIVERS + OSM · 离线底图</string>
+    <string name="heading_unknown">朝向：未知（无罗盘传感器，按距离排序）</string>
+    <string name="heading_fmt">朝向 %1$.0f° %2$s · 前方 ±%3$d°</string>
+    <string name="clear_selection">清除选中</string>
+    <string name="unnamed_hydro">未命名河段 · #%1$s</string>
+    <string name="unnamed_osm">未命名水道</string>
+    <string name="list_item_fmt">%1$s  ·  %2$.1f km  ·  %3$.0f°</string>
+    <string name="compass_unavailable">设备无可用罗盘/旋转矢量传感器，已按距离列出附近河流</string>
 </resources>

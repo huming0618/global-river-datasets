@@ -27,14 +27,30 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <TextView
-            android:id="@+id/hintText"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="12dp"
-            android:text="@string/offline_hint"
-            android:textColor="@color/md_muted"
-            android:textSize="13sp" />
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <TextView
+                android:id="@+id/hintText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/offline_hint"
+                android:textColor="@color/md_muted"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/headingText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/heading_unknown"
+                android:textColor="@color/md_cyan"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -66,13 +82,44 @@
             android:orientation="vertical"
             android:padding="14dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/nearby_rivers_title"
-                android:textColor="@color/md_cyan"
-                android:textStyle="bold"
-                android:textSize="15sp" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/nearby_rivers_title"
+                    android:textColor="@color/md_cyan"
+                    android:textStyle="bold"
+                    android:textSize="15sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnClearSelection"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/clear_selection"
+                    android:textColor="@color/md_amber"
+                    android:textSize="12sp"
+                    android:minHeight="0dp"
+                    android:paddingTop="4dp"
+                    android:paddingBottom="4dp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <ListView
+                android:id="@+id/riverListView"
+                android:layout_width="match_parent"
+                android:layout_height="160dp"
+                android:layout_marginTop="4dp"
+                android:divider="@color/md_muted"
+                android:dividerHeight="0.5dp"
+                android:choiceMode="singleChoice"
+                android:scrollbarStyle="outsideOverlay" />
 
             <TextView
                 android:id="@+id/nearbyList"
@@ -82,8 +129,7 @@
                 android:text="@string/locating"
                 android:textColor="@color/md_on_dark"
                 android:textSize="14sp"
-                android:maxLines="8"
-                android:ellipsize="end" />
+                android:visibility="gone" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
