@@ -11,8 +11,8 @@ android {
         applicationId = "com.huming.rivermap"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "0.3.2"
+        versionCode = 6
+        versionName = "0.3.3"
     }
 
     buildTypes {

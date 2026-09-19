@@ -679,20 +679,59 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         val style = mapLibreMap?.style
         (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(fc.toString())
 
-        // Pan/zoom to show user + nearest point of the river group
-        try {
-            val builder = LatLngBounds.Builder()
-                .include(userLatLng)
-                .include(LatLng(item.nearestLat, item.nearestLon))
-            val bounds = builder.build()
-            mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
+        // Focus camera on the selected river only (do not pull toward user location)
+        animateCameraToRiver(item)
+    }
+
+    /** Bounds of all highlighted segments for [item], or null if geometry cannot be read. */
+    private fun boundsForRiverFeatures(item: RiverItem): LatLngBounds? {
+        val builder = LatLngBounds.Builder()
+        var count = 0
+        fun absorbPoint(c: JSONArray) {
+            builder.include(LatLng(c.getDouble(1), c.getDouble(0)))
+            count++
+        }
+        fun absorbLine(line: JSONArray) {
+            for (i in 0 until line.length()) absorbPoint(line.getJSONArray(i))
+        }
+        for (feature in item.features) {
+            val geom = feature.optJSONObject("geometry") ?: continue
+            val type = geom.optString("type")
+            val coords = geom.optJSONArray("coordinates") ?: continue
+            when (type) {
+                "LineString" -> absorbLine(coords)
+                "MultiLineString" -> {
+                    for (i in 0 until coords.length()) absorbLine(coords.getJSONArray(i))
+                }
+            }
+        }
+        if (count == 0) return null
+        return try {
+            builder.build()
         } catch (_: Exception) {
-            mapLibreMap?.animateCamera(
-                CameraUpdateFactory.newLatLngZoom(
-                    LatLng(item.nearestLat, item.nearestLon),
-                    NEAR_ZOOM
-                )
-            )
+            null
+        }
+    }
+
+    private fun animateCameraToRiver(item: RiverItem) {
+        val map = mapLibreMap ?: return
+        val nearest = LatLng(item.nearestLat, item.nearestLon)
+        val bounds = boundsForRiverFeatures(item)
+        try {
+            if (bounds != null) {
+                val latSpan = bounds.latitudeNorth - bounds.latitudeSouth
+                val lonSpan = bounds.longitudeEast - bounds.longitudeWest
+                // Degenerate / tiny span: pad around nearest point so newLatLngBounds works
+                if (latSpan < 1e-5 && lonSpan < 1e-5) {
+                    map.animateCamera(CameraUpdateFactory.newLatLngZoom(nearest, NEAR_ZOOM))
+                } else {
+                    map.animateCamera(CameraUpdateFactory.newLatLngBounds(bounds, 120))
+                }
+            } else {
+                map.animateCamera(CameraUpdateFactory.newLatLngZoom(nearest, NEAR_ZOOM))
+            }
+        } catch (_: Exception) {
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(nearest, NEAR_ZOOM))
         }
     }
 
