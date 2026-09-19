@@ -1,0 +1,247 @@
+{
+  "title": "Global public river / hydrography datasets",
+  "title_zh": "全球公开河流/水文地理数据集目录",
+  "updated": "2026-09-19",
+  "locale": "zh-CN",
+  "how_to_choose_zh": [
+    "河网制图/拓扑 → HydroRIVERS；更密建模河段 → MERIT-Basins；本地沟渠地名 → OSM",
+    "嵌套流域 → HydroBASINS；河段单元集水区 → MERIT-Basins cat_*；命名大流域报表 → FAO AQUAMAPS",
+    "环境属性挂接 → HydroATLAS",
+    "实测流量 → GRDC；格点再分析 → GloFAS；MERIT河段估计 → GRADES-hydroDL",
+    "水面变化/河宽 → GSW + GRWL/SWORD"
+  ],
+  "datasets": [
+    {
+      "id": "hydrorivers",
+      "name": "HydroRIVERS",
+      "category": "river_network",
+      "provider": "WWF / HydroSHEDS",
+      "coverage": "global",
+      "url": "https://www.hydrosheds.org/products/hydrorivers",
+      "license_note": "HydroSHEDS terms; research/education/commercial OK with attribution",
+      "formats": [
+        "File Geodatabase",
+        "Shapefile"
+      ],
+      "summary_zh": "全球一致河网矢量，默认制图与拓扑起点"
+    },
+    {
+      "id": "merit-basins",
+      "name": "MERIT-Basins",
+      "category": "river_network",
+      "provider": "ReachHydro",
+      "coverage": "near-global",
+      "url": "https://www.reachhydro.org/home/params/merit-basins",
+      "license_note": "CC BY-NC 4.0 or ODbL 1.0",
+      "formats": [
+        "Shapefile"
+      ],
+      "summary_zh": "高分辨率河段+单元流域，适合汇流建模"
+    },
+    {
+      "id": "osm-waterways",
+      "name": "OpenStreetMap waterways",
+      "category": "river_network",
+      "provider": "OSM / Geofabrik",
+      "coverage": "global uneven",
+      "url": "https://download.geofabrik.de/",
+      "license_note": "ODbL 1.0",
+      "formats": [
+        "PBF",
+        "Shapefile",
+        "GeoPackage"
+      ],
+      "summary_zh": "众包水道，补人工河道与地名"
+    },
+    {
+      "id": "sword",
+      "name": "SWORD",
+      "category": "river_network",
+      "provider": "SWOT science team / UNC",
+      "coverage": "global wide rivers",
+      "url": "http://gaia.geosci.unc.edu/SWORD/",
+      "license_note": "Often CC BY on Zenodo; check release page",
+      "formats": [
+        "NetCDF",
+        "GeoPackage",
+        "Shapefile"
+      ],
+      "summary_zh": "面向 SWOT 的宽河河段/节点框架"
+    },
+    {
+      "id": "hydrosheds-v2",
+      "name": "HydroSHEDS v2 RIV",
+      "category": "river_network",
+      "provider": "HydroSHEDS",
+      "coverage": "Americas first (not yet global)",
+      "url": "https://www.hydrosheds.org/products/hydrosheds-v2",
+      "license_note": "CC BY 4.0",
+      "formats": [
+        "GeoTIFF",
+        "GeoPackage",
+        "File GDB"
+      ],
+      "summary_zh": "约30m新品；当前非全球"
+    },
+    {
+      "id": "hydrobasins",
+      "name": "HydroBASINS",
+      "category": "basin",
+      "provider": "HydroSHEDS / WWF",
+      "coverage": "global land excl. Antarctica",
+      "url": "https://www.hydrosheds.org/products/hydrobasins",
+      "license_note": "HydroSHEDS terms",
+      "formats": [
+        "Shapefile"
+      ],
+      "summary_zh": "全球嵌套子流域 Pfafstetter 1–12 级"
+    },
+    {
+      "id": "fao-aquamaps-basins",
+      "name": "FAO AQUAMAPS hydrological basins",
+      "category": "basin",
+      "provider": "FAO",
+      "coverage": "global",
+      "url": "https://www.fao.org/aquastat/en/geospatial-information/aquamaps/",
+      "license_note": "See FAO terms",
+      "formats": [
+        "various"
+      ],
+      "summary_zh": "命名大流域汇总，对接 FAO 统计"
+    },
+    {
+      "id": "hydrolakes",
+      "name": "HydroLAKES",
+      "category": "lakes",
+      "provider": "HydroSHEDS",
+      "coverage": "global lakes/reservoirs ≥10 ha",
+      "url": "https://www.hydrosheds.org/products/hydrolakes",
+      "license_note": "CC BY 4.0",
+      "formats": [
+        "GDB",
+        "Shapefile"
+      ],
+      "summary_zh": "全球湖库岸线约140万个"
+    },
+    {
+      "id": "hydroatlas",
+      "name": "HydroATLAS",
+      "category": "attributes",
+      "provider": "HydroSHEDS",
+      "coverage": "global",
+      "url": "https://www.hydrosheds.org/hydroatlas",
+      "license_note": "CC BY 4.0 (source attributes may vary)",
+      "formats": [
+        "various"
+      ],
+      "summary_zh": "河网/流域几何上挂环境属性"
+    },
+    {
+      "id": "merit-hydro",
+      "name": "MERIT Hydro",
+      "category": "raster_hydrography",
+      "provider": "University of Tokyo et al.",
+      "coverage": "90N–60S",
+      "url": "https://global-hydrodynamics.github.io/MERIT_Hydro/",
+      "license_note": "CC BY-NC 4.0 or ODbL 1.0; registration required",
+      "formats": [
+        "GeoTIFF"
+      ],
+      "summary_zh": "约90m流向/累积等栅格"
+    },
+    {
+      "id": "grdc",
+      "name": "GRDC",
+      "category": "observed_discharge",
+      "provider": "BfG / WMO",
+      "coverage": "global stations uneven",
+      "url": "https://grdc.bafg.de/",
+      "license_note": "Free with registration; non-commercial; no redistribution of raw data",
+      "formats": [
+        "portal export"
+      ],
+      "summary_zh": "全球实测站流量金标准之一"
+    },
+    {
+      "id": "glofas-historical",
+      "name": "GloFAS Historical",
+      "category": "modeled_discharge",
+      "provider": "Copernicus CEMS",
+      "coverage": "global excl. Antarctica",
+      "url": "https://ewds.climate.copernicus.eu/datasets/cems-glofas-historical",
+      "license_note": "Copernicus account required",
+      "formats": [
+        "GRIB2",
+        "NetCDF-4"
+      ],
+      "summary_zh": "全球格点日流量再分析"
+    },
+    {
+      "id": "grades-hydrodl",
+      "name": "GRADES-hydroDL",
+      "category": "modeled_discharge",
+      "provider": "ReachHydro / UCSD",
+      "coverage": "MERIT-Basins reaches",
+      "url": "https://www.reachhydro.org/home/records/grades-hydrodl",
+      "license_note": "Often CC BY-NC-SA 4.0",
+      "formats": [
+        "various via Globus/Drive"
+      ],
+      "summary_zh": "MERIT河段日流量模型估计"
+    },
+    {
+      "id": "gsw",
+      "name": "JRC Global Surface Water",
+      "category": "surface_water",
+      "provider": "JRC / Copernicus",
+      "coverage": "global",
+      "url": "https://global-surface-water.appspot.com/download",
+      "license_note": "Copernicus free with citation",
+      "formats": [
+        "tiles",
+        "GEE",
+        "WMS"
+      ],
+      "summary_zh": "Landsat衍生全球水面Occurrence等"
+    },
+    {
+      "id": "grwl",
+      "name": "GRWL",
+      "category": "surface_water",
+      "provider": "Allen & Pavelsky et al.",
+      "coverage": "global wide rivers",
+      "url": "https://doi.org/10.5281/zenodo.1297434",
+      "license_note": "See Zenodo record",
+      "formats": [
+        "various"
+      ],
+      "summary_zh": "光学影像全球河宽与中心线"
+    },
+    {
+      "id": "eu-hydro",
+      "name": "EU-Hydro",
+      "category": "regional",
+      "provider": "Copernicus Land",
+      "coverage": "Europe only",
+      "url": "https://land.copernicus.eu/en/products/eu-hydro/eu-hydro-river-network-database",
+      "license_note": "See Copernicus terms",
+      "formats": [
+        "various"
+      ],
+      "summary_zh": "仅欧洲河网，非全球"
+    },
+    {
+      "id": "usgs-nhd",
+      "name": "USGS NHD / NHDPlus",
+      "category": "regional",
+      "provider": "USGS",
+      "coverage": "USA only",
+      "url": "https://www.usgs.gov/national-hydrography/national-hydrography-dataset",
+      "license_note": "USGS public data policies",
+      "formats": [
+        "various"
+      ],
+      "summary_zh": "仅美国，勿与HydroBASINS混淆"
+    }
+  ]
+}

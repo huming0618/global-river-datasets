@@ -1,0 +1,13 @@
+Creative Commons Attribution 4.0 International
+
+Copyright (c) 2026
+
+This repository contains documentation, metadata, and catalog notes only.
+It does NOT redistribute raw hydrography or discharge datasets from third parties
+(HydroSHEDS, MERIT, GRDC, Copernicus, OSM, etc.). Users must obtain those
+products from their official portals under each product's own license terms.
+
+Documentation and catalog files in this repository are licensed under CC BY 4.0:
+https://creativecommons.org/licenses/by/4.0/
+
+Scripts may alternatively be used under the MIT License if preferred for code reuse.
