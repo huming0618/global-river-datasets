@@ -51,10 +51,12 @@ python3 scripts/validate_catalog.py
 
 ## Android 离线河网示例应用
 
-仓库内 [`app/`](app/) 提供基于 MapLibre 的 **离线 Android 示例**：深色底图、亮青色河网、按 GPS 筛选成都周边示意河流。
+仓库内 [`app/`](app/) 提供基于 MapLibre 的 **四川离线 Android 示例**：
 
-- 说明与构建步骤见 [app/README.md](app/README.md)
-- 用 Android Studio 打开 `app/` 目录，或执行 `cd app && ./gradlew assembleDebug`
+- 真实 **HydroRIVERS**（四川裁剪，`ORD_STRA ≥ 2`）+ **OSM** 水道补层
+- 深色 **离线 MBTiles** 底图（OpenMapTiles / Planetiler，z6–z12，约 74 MB，不进 Git）
+- 说明、许可与再生管线见 [app/README.md](app/README.md)；脚本：`scripts/build_sichuan_offline.sh`、`scripts/fetch_sichuan_basemap.sh`
+- 构建：`cd app && ./gradlew assembleDebug`（需先准备 `assets/sichuan-basemap.mbtiles`）
 
 ## 许可
 

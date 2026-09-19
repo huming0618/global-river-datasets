@@ -1,0 +1,22 @@
+# Raw / scratch downloads — never commit continent-scale archives
+*.zip
+HydroRIVERS*/
+*.osm.pbf
+planetiler.jar
+planetiler.log
+data/sichuan/*.mbtiles
+*.mbtiles
+!docs/**/*.md
+
+# Android / local
+**/local.properties
+**/.gradle/
+**/build/
+**/artifacts/
+*.apk
+*.aab
+.DS_Store
+.idea/
+
+# Scratch
+/workspace-scratch/

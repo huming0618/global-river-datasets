@@ -1,43 +1,10 @@
 {
   "version": 8,
-  "name": "Dark Offline Basemap",
-  "glyphs": "",
+  "name": "Sichuan Dark Offline",
   "sources": {
-    "land": {
-      "type": "geojson",
-      "data": {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-              "type": "Polygon",
-              "coordinates": [[
-                [103.0, 29.8], [105.2, 29.8], [105.2, 31.5], [103.0, 31.5], [103.0, 29.8]
-              ]]
-            }
-          }
-        ]
-      }
-    },
-    "water-bodies": {
-      "type": "geojson",
-      "data": {
-        "type": "FeatureCollection",
-        "features": [
-          {
-            "type": "Feature",
-            "properties": { "name": "示例水域" },
-            "geometry": {
-              "type": "Polygon",
-              "coordinates": [[
-                [104.02, 30.62], [104.10, 30.62], [104.10, 30.70], [104.02, 30.70], [104.02, 30.62]
-              ]]
-            }
-          }
-        ]
-      }
+    "openmaptiles": {
+      "type": "vector",
+      "url": "__MBTILES_URI__"
     }
   },
   "layers": [
@@ -47,25 +14,113 @@
       "paint": { "background-color": "#0b1220" }
     },
     {
-      "id": "land-fill",
+      "id": "landcover-grass",
       "type": "fill",
-      "source": "land",
-      "paint": { "fill-color": "#121a2b", "fill-opacity": 1 }
+      "source": "openmaptiles",
+      "source-layer": "landcover",
+      "filter": ["==", "class", "grass"],
+      "paint": { "fill-color": "#142033", "fill-opacity": 0.6 }
     },
     {
-      "id": "water-fill",
+      "id": "landcover-wood",
       "type": "fill",
-      "source": "water-bodies",
-      "paint": { "fill-color": "#1a2740", "fill-opacity": 0.85 }
+      "source": "openmaptiles",
+      "source-layer": "landcover",
+      "filter": ["==", "class", "wood"],
+      "paint": { "fill-color": "#101c2e", "fill-opacity": 0.7 }
     },
     {
-      "id": "grid-hint",
+      "id": "landuse",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "landuse",
+      "paint": { "fill-color": "#152238", "fill-opacity": 0.45 }
+    },
+    {
+      "id": "park",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "park",
+      "paint": { "fill-color": "#123024", "fill-opacity": 0.35 }
+    },
+    {
+      "id": "water",
+      "type": "fill",
+      "source": "openmaptiles",
+      "source-layer": "water",
+      "paint": { "fill-color": "#1a2740", "fill-opacity": 0.95 }
+    },
+    {
+      "id": "waterway-basemap",
       "type": "line",
-      "source": "land",
+      "source": "openmaptiles",
+      "source-layer": "waterway",
       "paint": {
-        "line-color": "#1e2a44",
-        "line-width": 0.5,
-        "line-opacity": 0.4
+        "line-color": "#243552",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.4, 12, 1.6],
+        "line-opacity": 0.7
+      }
+    },
+    {
+      "id": "boundary",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "boundary",
+      "filter": ["<=", "admin_level", 4],
+      "paint": {
+        "line-color": "#2a3a58",
+        "line-width": ["case", ["==", ["get", "admin_level"], 2], 1.4, 0.7],
+        "line-dasharray": [3, 2],
+        "line-opacity": 0.7
+      }
+    },
+    {
+      "id": "transportation-path",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "path", "track"],
+      "minzoom": 11,
+      "paint": {
+        "line-color": "#1e2c44",
+        "line-width": 0.6,
+        "line-opacity": 0.5
+      }
+    },
+    {
+      "id": "transportation-minor",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "minor", "service", "tertiary"],
+      "paint": {
+        "line-color": "#24344f",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.4, 12, 1.8],
+        "line-opacity": 0.75
+      }
+    },
+    {
+      "id": "transportation-major",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "transportation",
+      "filter": ["in", "class", "primary", "secondary", "trunk", "motorway"],
+      "paint": {
+        "line-color": "#3a4f72",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 6, 0.8, 12, 3.2],
+        "line-opacity": 0.9
+      }
+    },
+    {
+      "id": "aeroway",
+      "type": "line",
+      "source": "openmaptiles",
+      "source-layer": "aeroway",
+      "minzoom": 10,
+      "paint": {
+        "line-color": "#2c3d5a",
+        "line-width": 1.5,
+        "line-opacity": 0.6
       }
     }
   ]

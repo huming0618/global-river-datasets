@@ -18,3 +18,7 @@ local.properties
 .cxx/
 captures/
 .externalNativeBuild/
+
+# Large offline tiles (packaged into APK at build time; also on GitHub Release)
+*.mbtiles
+app/src/main/assets/*.mbtiles
