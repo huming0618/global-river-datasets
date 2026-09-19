@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">四川离线河网</string>
-    <string name="nearby_rivers_title">前方河流</string>
+    <string name="nearby_rivers_title">区域内河流</string>
     <string name="locating">正在定位…</string>
     <string name="loading_rivers">正在加载河网数据…</string>
     <string name="filtering_rivers">正在筛选前方河段…</string>
+    <string name="filtering_region">正在筛选可视区域河段…</string>
     <string name="rivers_load_failed">河网数据加载失败</string>
     <string name="location_denied">未授予定位权限，已默认显示成都中心</string>
     <string name="location_failed">定位失败，已默认显示成都中心</string>
@@ -19,4 +20,9 @@
     <string name="unnamed_osm">未命名水道</string>
     <string name="list_item_fmt">%1$s  ·  %2$.1f km  ·  %3$.0f°</string>
     <string name="compass_unavailable">设备无可用罗盘/旋转矢量传感器，已按距离列出附近河流</string>
+    <string name="hold_forward">按住看前方</string>
+    <string name="hold_forward_cd">按住以按朝向筛选前方河流，松开恢复区域列表</string>
+    <string name="hold_forward_unavailable">无罗盘 · 仅区域显示</string>
+    <string name="heading_released">松开 · 按区域显示</string>
+    <string name="heading_holding_wait">按住中 · 读取朝向…</string>
 </resources>

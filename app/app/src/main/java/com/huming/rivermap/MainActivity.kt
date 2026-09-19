@@ -15,6 +15,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
@@ -97,6 +98,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var hasCompass: Boolean = false
     private var currentHeadingDeg: Float? = null
     private var lastPublishedHeading: Float? = null
+    /** True only while user is pressing-and-holding the forward-cone button. */
+    private var headingHoldActive: Boolean = false
     private var lastFilterElapsedMs: Long = 0L
     private val rotationMatrix = FloatArray(9)
     private val orientationAngles = FloatArray(3)
@@ -140,10 +143,11 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
         findViewById<FloatingActionButton>(R.id.fabRecenter).setOnClickListener {
             mapLibreMap?.animateCamera(CameraUpdateFactory.newLatLngZoom(userLatLng, NEAR_ZOOM))
-            scheduleForwardFilter(force = true)
+            scheduleViewUpdate(force = true)
         }
 
         initCompass()
+        setupHoldForwardButton()
 
         mapView.onCreate(savedInstanceState)
         nearbyList.text = getString(R.string.loading_rivers)
@@ -153,8 +157,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             map.uiSettings.isAttributionEnabled = true
             map.uiSettings.isLogoEnabled = false
             map.addOnCameraIdleListener {
-                // Only on idle (not every frame): refresh near-layer + list from viewport
-                scheduleForwardFilter(force = false)
+                // Region mode: on idle (not every frame) refresh near-layer + list from viewport
+                scheduleViewUpdate(force = false)
             }
             ioExecutor.execute {
                 val mbtiles = ensureMbtilesOnDisk()
@@ -181,6 +185,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         if (!hasCompass) {
             headingText.text = getString(R.string.heading_unknown)
             Snackbar.make(mapView, getString(R.string.compass_unavailable), Snackbar.LENGTH_LONG).show()
+        } else {
+            headingText.text = getString(R.string.heading_released)
         }
     }
 
@@ -274,7 +280,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 // Location component optional if Play Services unavailable
             }
         }
-        scheduleForwardFilter(force = true)
+        scheduleViewUpdate(force = true)
         updateHint()
         updateHeadingUi()
     }
@@ -282,17 +288,30 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private fun updateHint() {
         val lat = "%.4f".format(userLatLng.latitude)
         val lon = "%.4f".format(userLatLng.longitude)
-        hintText.text = if (hasPreciseLocation) {
-            "四川离线河网 · 当前位置 $lat, $lon · 可视区域 + 前方锥形"
+        val mode = if (headingHoldActive) {
+            "可视区域 + 按住前方锥形"
         } else {
-            "四川离线河网 · 默认成都 $lat, $lon · 可视区域 + 前方锥形"
+            "可视区域（松开 · 无朝向锥形）"
+        }
+        hintText.text = if (hasPreciseLocation) {
+            "四川离线河网 · 当前位置 $lat, $lon · $mode"
+        } else {
+            "四川离线河网 · 默认成都 $lat, $lon · $mode"
         }
     }
 
     private fun updateHeadingUi() {
-        val h = currentHeadingDeg
-        if (h == null || !hasCompass) {
+        if (!hasCompass) {
             headingText.text = getString(R.string.heading_unknown)
+            return
+        }
+        if (!headingHoldActive) {
+            headingText.text = getString(R.string.heading_released)
+            return
+        }
+        val h = currentHeadingDeg
+        if (h == null) {
+            headingText.text = getString(R.string.heading_holding_wait)
         } else {
             headingText.text = getString(
                 R.string.heading_fmt,
@@ -301,6 +320,52 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 CONE_HALF_DEG.toInt()
             )
         }
+    }
+
+    private fun setupHoldForwardButton() {
+        val btn = findViewById<Button>(R.id.btnHoldForward)
+        if (!hasCompass) {
+            btn.isEnabled = false
+            btn.alpha = 0.45f
+            btn.text = getString(R.string.hold_forward_unavailable)
+            return
+        }
+        btn.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    v.isPressed = true
+                    onHeadingHoldStarted()
+                    true
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    v.isPressed = false
+                    onHeadingHoldEnded()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun onHeadingHoldStarted() {
+        if (headingHoldActive) return
+        headingHoldActive = true
+        lastPublishedHeading = null
+        updateHint()
+        updateHeadingUi()
+        registerSensors()
+        scheduleViewUpdate(force = true)
+    }
+
+    private fun onHeadingHoldEnded() {
+        if (!headingHoldActive) return
+        headingHoldActive = false
+        unregisterSensors()
+        lastPublishedHeading = null
+        updateHint()
+        updateHeadingUi()
+        // Freeze: drop cone; list = viewport region only (no heading filter)
+        scheduleViewUpdate(force = true)
     }
 
     private fun loadRiverLayersAsync(style: Style) {
@@ -413,7 +478,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         LAYER_SELECTED
                     )
                     riversReady = true
-                    scheduleForwardFilter(force = true)
+                    scheduleViewUpdate(force = true)
                     updateHint()
                 }
             } catch (e: Exception) {
@@ -429,7 +494,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         assets.open(name).bufferedReader().use { return it.readText() }
     }
 
-    private fun scheduleForwardFilter(force: Boolean = false) {
+    private fun scheduleViewUpdate(force: Boolean = false) {
         val now = SystemClock.elapsedRealtime()
         if (!force && now - lastFilterElapsedMs < FILTER_THROTTLE_MS) {
             pendingFilter = true
@@ -477,10 +542,15 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             pendingFilter = true
             return
         }
-        riverAdapter.setStatus(getString(R.string.filtering_rivers))
+        riverAdapter.setStatus(
+            getString(
+                if (headingHoldActive) R.string.filtering_rivers else R.string.filtering_region
+            )
+        )
         val center = userLatLng
         val heading = currentHeadingDeg
-        val useCone = hasCompass && heading != null
+        // Heading cone only while press-and-hold; otherwise viewport region only
+        val useCone = headingHoldActive && hasCompass && heading != null
         val viewport = currentViewportBounds() ?: fallbackRadiusBounds(center)
         // Slight pad so rivers clipped at the edge still count
         val padFrac = 0.02
@@ -616,7 +686,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 filterInFlight.set(false)
                 if (pendingFilter) {
                     pendingFilter = false
-                    mainHandler.post { scheduleForwardFilter(force = true) }
+                    mainHandler.post { scheduleViewUpdate(force = true) }
                 }
             }
         }
@@ -880,11 +950,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         } ?: return
 
         currentHeadingDeg = heading
+        if (!headingHoldActive) return
         val last = lastPublishedHeading
         if (last == null || angularDiffDeg(last.toDouble(), heading.toDouble()) >= HEADING_DELTA_DEG) {
             lastPublishedHeading = heading
             updateHeadingUi()
-            scheduleForwardFilter(force = false)
+            scheduleViewUpdate(force = false)
         }
     }
 
@@ -914,10 +985,23 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     override fun onResume() {
         super.onResume()
         mapView.onResume()
-        registerSensors()
+        // Compass only while hold-forward is pressed (saves battery / noise)
+        if (headingHoldActive) {
+            registerSensors()
+        } else {
+            updateHeadingUi()
+        }
     }
 
     override fun onPause() {
+        // End hold if activity backgrounds mid-press
+        if (headingHoldActive) {
+            headingHoldActive = false
+            findViewById<Button?>(R.id.btnHoldForward)?.isPressed = false
+            updateHint()
+            updateHeadingUi()
+            scheduleViewUpdate(force = true)
+        }
         unregisterSensors()
         mapView.onPause()
         super.onPause()

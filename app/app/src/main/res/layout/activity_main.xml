@@ -111,6 +111,22 @@
                     android:visibility="gone" />
             </LinearLayout>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnHoldForward"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="4dp"
+                android:text="@string/hold_forward"
+                android:textAllCaps="false"
+                android:textStyle="bold"
+                android:textSize="15sp"
+                app:backgroundTint="@color/md_cyan"
+                android:textColor="@color/md_dark_bg"
+                app:cornerRadius="10dp"
+                android:minHeight="48dp"
+                android:contentDescription="@string/hold_forward_cd" />
+
             <ListView
                 android:id="@+id/riverListView"
                 android:layout_width="match_parent"
