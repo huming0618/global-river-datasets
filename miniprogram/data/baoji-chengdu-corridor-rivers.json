@@ -1,0 +1,534 @@
+{
+  "title_zh": "宝成线 广元→宝鸡 走廊河网（缓冲约12km）",
+  "route": "Guangyuan → Baoji (Baocheng Railway approx centerline)",
+  "buffer_km": 12.0,
+  "method": "HydroRIVERS Asia ORD_STRA>=3 ∩ corridor + OSM named waterway ∩ corridor (Sichuan extract + OSM API map tiles)",
+  "caveat_zh": "中心线为镇站简化折线，非精确铁路线形；走廊相交≠铁路桥精确跨越次数。HydroRIVERS 无中文名，具名以 OSM 为准。",
+  "hydro_segments_ord3plus": 170,
+  "osm_named_count": 37,
+  "named_rivers_along_route": [
+    {
+      "name": "南河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 0.0,
+      "approx_dist_to_centerline_km": 6.39,
+      "sample_lonlat": [
+        105.8908224,
+        32.4131038
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "广坪河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 19.6,
+      "approx_dist_to_centerline_km": 8.06,
+      "sample_lonlat": [
+        105.7951948,
+        32.6235456
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "安乐河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 28.8,
+      "approx_dist_to_centerline_km": 9.66,
+      "sample_lonlat": [
+        105.8474511,
+        32.6683775
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "潜溪河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 34.7,
+      "approx_dist_to_centerline_km": 9.19,
+      "sample_lonlat": [
+        106.036579,
+        32.692848
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "燕子河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 54.7,
+      "approx_dist_to_centerline_km": 14.03,
+      "sample_lonlat": [
+        105.9091043,
+        32.9474262
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "寄刀沟",
+      "waterway": [
+        "river",
+        "stream"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 59.5,
+      "approx_dist_to_centerline_km": 12.03,
+      "sample_lonlat": [
+        105.9393436,
+        32.965458
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "韩家河",
+      "waterway": [
+        "river",
+        "stream"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 60.6,
+      "approx_dist_to_centerline_km": 0.69,
+      "sample_lonlat": [
+        106.0476646,
+        32.9478358
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "三道河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 63.1,
+      "approx_dist_to_centerline_km": 2.27,
+      "sample_lonlat": [
+        106.1523458,
+        32.9024859
+      ],
+      "way_parts": 5
+    },
+    {
+      "name": "南沙河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 69.1,
+      "approx_dist_to_centerline_km": 5.89,
+      "sample_lonlat": [
+        106.1555591,
+        32.9964131
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "清河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 70.6,
+      "approx_dist_to_centerline_km": 10.95,
+      "sample_lonlat": [
+        105.9857243,
+        33.0782509
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "巩家河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 75.4,
+      "approx_dist_to_centerline_km": 5.92,
+      "sample_lonlat": [
+        106.1228308,
+        33.0474571
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "嘉陵江",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 88.9,
+      "approx_dist_to_centerline_km": 8.92,
+      "sample_lonlat": [
+        106.0616459,
+        33.3851467
+      ],
+      "way_parts": 22
+    },
+    {
+      "name": "乐素河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 89.9,
+      "approx_dist_to_centerline_km": 11.78,
+      "sample_lonlat": [
+        106.0243904,
+        33.1960825
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "横现河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 108.7,
+      "approx_dist_to_centerline_km": 14.57,
+      "sample_lonlat": [
+        106.0465209,
+        33.3414042
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "西汉水",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 121.9,
+      "approx_dist_to_centerline_km": 13.26,
+      "sample_lonlat": [
+        105.978298,
+        33.453541
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "青泥河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 133.6,
+      "approx_dist_to_centerline_km": 8.8,
+      "sample_lonlat": [
+        106.0030283,
+        33.577665
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "江洛河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 152.6,
+      "approx_dist_to_centerline_km": 7.21,
+      "sample_lonlat": [
+        105.9524277,
+        33.8561579
+      ],
+      "way_parts": 4
+    },
+    {
+      "name": "罗家河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 154.3,
+      "approx_dist_to_centerline_km": 8.71,
+      "sample_lonlat": [
+        106.0459552,
+        33.839416
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "永宁河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 166.6,
+      "approx_dist_to_centerline_km": 7.0,
+      "sample_lonlat": [
+        106.183112,
+        33.9747847
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "两当河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 177.6,
+      "approx_dist_to_centerline_km": 2.73,
+      "sample_lonlat": [
+        106.3038826,
+        33.8775596
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "云屏河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 179.8,
+      "approx_dist_to_centerline_km": 15.68,
+      "sample_lonlat": [
+        106.3326314,
+        33.7749419
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "红崖河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 190.7,
+      "approx_dist_to_centerline_km": 1.03,
+      "sample_lonlat": [
+        106.3944378,
+        34.0158951
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "徐杨河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 195.0,
+      "approx_dist_to_centerline_km": 10.38,
+      "sample_lonlat": [
+        106.4500308,
+        33.9977782
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "褒河",
+      "waterway": [
+        "river",
+        "stream"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 235.1,
+      "approx_dist_to_centerline_km": 17.88,
+      "sample_lonlat": [
+        106.9699693,
+        33.9984234
+      ],
+      "way_parts": 2
+    },
+    {
+      "name": "神沙河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 256.8,
+      "approx_dist_to_centerline_km": 1.55,
+      "sample_lonlat": [
+        106.9823796,
+        34.2492663
+      ],
+      "way_parts": 4
+    },
+    {
+      "name": "晁峪河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 260.3,
+      "approx_dist_to_centerline_km": 12.21,
+      "sample_lonlat": [
+        106.9532994,
+        34.3521698
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "李家河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 260.5,
+      "approx_dist_to_centerline_km": 1.53,
+      "sample_lonlat": [
+        107.0549503,
+        34.2620168
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "清姜河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 265.5,
+      "approx_dist_to_centerline_km": 0.8,
+      "sample_lonlat": [
+        107.0772344,
+        34.3079323
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "宝鸡峡引渭灌溉工程干渠",
+      "waterway": [
+        "canal"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 269.6,
+      "approx_dist_to_centerline_km": 8.83,
+      "sample_lonlat": [
+        107.0456103,
+        34.385411
+      ],
+      "way_parts": 3
+    },
+    {
+      "name": "茵香河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 273.0,
+      "approx_dist_to_centerline_km": 6.59,
+      "sample_lonlat": [
+        107.1911713,
+        34.3102437
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "渭河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 274.2,
+      "approx_dist_to_centerline_km": 0.55,
+      "sample_lonlat": [
+        107.0451492,
+        34.3848739
+      ],
+      "way_parts": 5
+    },
+    {
+      "name": "六川河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 274.3,
+      "approx_dist_to_centerline_km": 19.12,
+      "sample_lonlat": [
+        107.0103141,
+        34.4867148
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "金陵河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 274.3,
+      "approx_dist_to_centerline_km": 13.64,
+      "sample_lonlat": [
+        107.1077498,
+        34.4777048
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "清水河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 274.3,
+      "approx_dist_to_centerline_km": 11.88,
+      "sample_lonlat": [
+        107.2605138,
+        34.3057334
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "千河",
+      "waterway": [
+        "river"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 274.3,
+      "approx_dist_to_centerline_km": 13.28,
+      "sample_lonlat": [
+        107.2878419,
+        34.3925684
+      ],
+      "way_parts": 3
+    }
+  ],
+  "named_streams_sample": [
+    {
+      "name": "东河",
+      "waterway": [
+        "stream"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 156.3,
+      "approx_dist_to_centerline_km": 2.49,
+      "sample_lonlat": [
+        106.0932196,
+        33.795759
+      ],
+      "way_parts": 1
+    },
+    {
+      "name": "交口河",
+      "waterway": [
+        "stream"
+      ],
+      "source": "OSM",
+      "approx_chainage_km_from_guangyuan": 273.8,
+      "approx_dist_to_centerline_km": 8.98,
+      "sample_lonlat": [
+        107.0662239,
+        34.4574009
+      ],
+      "way_parts": 5
+    }
+  ]
+}
