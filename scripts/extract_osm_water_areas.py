@@ -191,7 +191,23 @@ def main() -> int:
     h.apply_file(pbf, locations=True, idx="flex_mem")
     print(f"Done. seen={h.seen} kept={h.kept} skipped_geom={h.skipped_geom}", flush=True)
 
-    fc = {"type": "FeatureCollection", "features": h.features}
+    def useful(feat: dict) -> bool:
+        """Keep named or river-like polygons only — full pond dump OOMs on device."""
+        props = feat.get("properties") or {}
+        name = (props.get("name") or "").strip()
+        if name and name.lower() != "null":
+            return True
+        water = (props.get("water") or "").lower()
+        waterway = (props.get("waterway") or "").lower()
+        if water in {"river", "oxbow", "canal"}:
+            return True
+        if waterway in {"riverbank", "dock"}:
+            return True
+        return False
+
+    useful_features = [f for f in h.features if useful(f)]
+    print(f"Filtered to useful water areas: {len(useful_features)} / {len(h.features)}", flush=True)
+    fc = {"type": "FeatureCollection", "features": useful_features}
     out_json = out_gz[:-3] if out_gz.endswith(".gz") else out_gz + ".tmp.geojson"
     if out_gz.endswith(".gz"):
         # write uncompressed next to gz for inspection, then gzip

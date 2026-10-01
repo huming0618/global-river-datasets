@@ -90,6 +90,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     /** Parallel bbox [minLon,minLat,maxLon,maxLat] for each waterFeatures entry. */
     private var waterBboxes: Array<DoubleArray> = emptyArray()
     private var waterByName: Map<String, IntArray> = emptyMap()
+    /** False when water polygons failed to load — highlights fall back to line buffers. */
+    private var waterAreasAvailable: Boolean = false
     private var riversReady: Boolean = false
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
@@ -378,119 +380,151 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             try {
                 val hydroJson = readAssetText(HYDRO_ASSET)
                 val osmJson = readAssetText(OSM_ASSET)
-                val waterJson = readAssetText(WATER_AREAS_ASSET)
                 val hydroRoot = JSONObject(hydroJson)
                 val osmRoot = JSONObject(osmJson)
-                val waterRoot = JSONObject(waterJson)
                 hydroFeatures = hydroRoot.getJSONArray("features")
                 osmFeatures = osmRoot.getJSONArray("features")
-                waterFeatures = waterRoot.getJSONArray("features")
-                indexWaterAreas()
+
+                // Water polygons are optional: large GeoJSON can OOM. Never block base rivers.
+                var waterLoadNote: String? = null
+                try {
+                    val waterJson = readAssetText(WATER_AREAS_ASSET)
+                    val waterRoot = JSONObject(waterJson)
+                    waterFeatures = waterRoot.getJSONArray("features")
+                    indexWaterAreas()
+                    waterAreasAvailable = waterFeatures.length() > 0
+                } catch (t: Throwable) {
+                    waterFeatures = JSONArray()
+                    waterBboxes = emptyArray()
+                    waterByName = emptyMap()
+                    waterAreasAvailable = false
+                    waterLoadNote = t.javaClass.simpleName
+                    System.gc()
+                }
+
                 mainHandler.post {
                     if (isDestroyed) return@post
                     val liveStyle = mapLibreMap?.style ?: style
-                    liveStyle.addSource(GeoJsonSource(SOURCE_OSM, osmJson))
-                    liveStyle.addLayer(
-                        LineLayer(LAYER_OSM, SOURCE_OSM).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#4DD0E1")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 0.8f),
-                            Expression.stop(10, 1.2f),
-                            Expression.stop(14, 1.8f)
-                        )),
-                            PropertyFactory.lineOpacity(0.55f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                    try {
+                        liveStyle.addSource(GeoJsonSource(SOURCE_OSM, osmJson))
+                        liveStyle.addLayer(
+                            LineLayer(LAYER_OSM, SOURCE_OSM).withProperties(
+                                PropertyFactory.lineColor(Color.parseColor("#4DD0E1")),
+                                PropertyFactory.lineWidth(Expression.interpolate(
+                                Expression.linear(),
+                                Expression.zoom(),
+                                Expression.stop(6, 0.8f),
+                                Expression.stop(10, 1.2f),
+                                Expression.stop(14, 1.8f)
+                            )),
+                                PropertyFactory.lineOpacity(0.55f),
+                                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                            )
                         )
-                    )
-                    liveStyle.addSource(GeoJsonSource(SOURCE_HYDRO, hydroJson))
-                    liveStyle.addLayer(
-                        LineLayer(LAYER_HYDRO, SOURCE_HYDRO).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#26C6DA")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 1.0f),
-                            Expression.stop(10, 1.6f),
-                            Expression.stop(14, 2.2f)
-                        )),
-                            PropertyFactory.lineOpacity(0.55f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        liveStyle.addSource(GeoJsonSource(SOURCE_HYDRO, hydroJson))
+                        liveStyle.addLayer(
+                            LineLayer(LAYER_HYDRO, SOURCE_HYDRO).withProperties(
+                                PropertyFactory.lineColor(Color.parseColor("#26C6DA")),
+                                PropertyFactory.lineWidth(Expression.interpolate(
+                                Expression.linear(),
+                                Expression.zoom(),
+                                Expression.stop(6, 1.0f),
+                                Expression.stop(10, 1.6f),
+                                Expression.stop(14, 2.2f)
+                            )),
+                                PropertyFactory.lineOpacity(0.55f),
+                                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                            )
                         )
-                    )
-                    // Near highlight: filled water surface (+ outline)
-                    liveStyle.addSource(GeoJsonSource(SOURCE_NEAR, emptyFeatureCollection()))
-                    liveStyle.addLayer(
-                        FillLayer(LAYER_NEAR_FILL, SOURCE_NEAR).withProperties(
-                            PropertyFactory.fillColor(Color.parseColor("#00E5FF")),
-                            PropertyFactory.fillOpacity(0.42f),
-                            PropertyFactory.fillAntialias(true)
+                        // Near highlight: filled water surface (+ outline)
+                        liveStyle.addSource(GeoJsonSource(SOURCE_NEAR, emptyFeatureCollection()))
+                        liveStyle.addLayer(
+                            FillLayer(LAYER_NEAR_FILL, SOURCE_NEAR).withProperties(
+                                PropertyFactory.fillColor(Color.parseColor("#00E5FF")),
+                                PropertyFactory.fillOpacity(0.42f),
+                                PropertyFactory.fillAntialias(true)
+                            )
                         )
-                    )
-                    liveStyle.addLayer(
-                        LineLayer(LAYER_NEAR, SOURCE_NEAR).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#00E5FF")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 0.8f),
-                            Expression.stop(10, 1.2f),
-                            Expression.stop(14, 1.6f)
-                        )),
-                            PropertyFactory.lineOpacity(0.85f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        liveStyle.addLayer(
+                            LineLayer(LAYER_NEAR, SOURCE_NEAR).withProperties(
+                                PropertyFactory.lineColor(Color.parseColor("#00E5FF")),
+                                PropertyFactory.lineWidth(Expression.interpolate(
+                                Expression.linear(),
+                                Expression.zoom(),
+                                Expression.stop(6, 0.8f),
+                                Expression.stop(10, 1.2f),
+                                Expression.stop(14, 1.6f)
+                            )),
+                                PropertyFactory.lineOpacity(0.85f),
+                                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                            )
                         )
-                    )
-                    liveStyle.addLayerBelow(
-                        FillLayer(LAYER_NEAR_GLOW, SOURCE_NEAR).withProperties(
-                            PropertyFactory.fillColor(Color.parseColor("#00B8D4")),
-                            PropertyFactory.fillOpacity(0.12f)
-                        ),
-                        LAYER_NEAR_FILL
-                    )
-                    // Selected river highlight (amber surface)
-                    liveStyle.addSource(GeoJsonSource(SOURCE_SELECTED, emptyFeatureCollection()))
-                    liveStyle.addLayer(
-                        FillLayer(LAYER_SELECTED_FILL, SOURCE_SELECTED).withProperties(
-                            PropertyFactory.fillColor(Color.parseColor("#FFB300")),
-                            PropertyFactory.fillOpacity(0.5f),
-                            PropertyFactory.fillAntialias(true)
+                        liveStyle.addLayerBelow(
+                            FillLayer(LAYER_NEAR_GLOW, SOURCE_NEAR).withProperties(
+                                PropertyFactory.fillColor(Color.parseColor("#00B8D4")),
+                                PropertyFactory.fillOpacity(0.12f)
+                            ),
+                            LAYER_NEAR_FILL
                         )
-                    )
-                    liveStyle.addLayer(
-                        LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#FF6D00")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 1.0f),
-                            Expression.stop(10, 1.6f),
-                            Expression.stop(14, 2.2f)
-                        )),
-                            PropertyFactory.lineOpacity(0.95f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        // Selected river highlight (amber surface)
+                        liveStyle.addSource(GeoJsonSource(SOURCE_SELECTED, emptyFeatureCollection()))
+                        liveStyle.addLayer(
+                            FillLayer(LAYER_SELECTED_FILL, SOURCE_SELECTED).withProperties(
+                                PropertyFactory.fillColor(Color.parseColor("#FFB300")),
+                                PropertyFactory.fillOpacity(0.5f),
+                                PropertyFactory.fillAntialias(true)
+                            )
                         )
-                    )
-                    liveStyle.addLayerBelow(
-                        FillLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
-                            PropertyFactory.fillColor(Color.parseColor("#FF6D00")),
-                            PropertyFactory.fillOpacity(0.16f)
-                        ),
-                        LAYER_SELECTED_FILL
-                    )
-                    riversReady = true
-                    scheduleViewUpdate(force = true)
-                    updateHint()
+                        liveStyle.addLayer(
+                            LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
+                                PropertyFactory.lineColor(Color.parseColor("#FF6D00")),
+                                PropertyFactory.lineWidth(Expression.interpolate(
+                                Expression.linear(),
+                                Expression.zoom(),
+                                Expression.stop(6, 1.0f),
+                                Expression.stop(10, 1.6f),
+                                Expression.stop(14, 2.2f)
+                            )),
+                                PropertyFactory.lineOpacity(0.95f),
+                                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                            )
+                        )
+                        liveStyle.addLayerBelow(
+                            FillLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
+                                PropertyFactory.fillColor(Color.parseColor("#FF6D00")),
+                                PropertyFactory.fillOpacity(0.16f)
+                            ),
+                            LAYER_SELECTED_FILL
+                        )
+                        riversReady = true
+                        scheduleViewUpdate(force = true)
+                        updateHint()
+                        if (waterLoadNote != null) {
+                            Toast.makeText(
+                                this,
+                                "水面填充不可用（$waterLoadNote），已用线缓冲降级",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    } catch (e: Exception) {
+                        riverAdapter.setStatus(getString(R.string.rivers_load_failed))
+                        Toast.makeText(this, e.message ?: "load failed", Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: Exception) {
                 mainHandler.post {
                     riverAdapter.setStatus(getString(R.string.rivers_load_failed))
                     Toast.makeText(this, e.message ?: "load failed", Toast.LENGTH_LONG).show()
+                }
+            } catch (t: Throwable) {
+                // OOM while loading hydro/osm — still try to surface an error
+                mainHandler.post {
+                    riverAdapter.setStatus(getString(R.string.rivers_load_failed))
+                    Toast.makeText(this, t.javaClass.simpleName, Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -498,6 +532,25 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun readAssetText(name: String): String {
         assets.open(name).bufferedReader().use { return it.readText() }
+    }
+
+    /** Safe property name: treat missing / JSON null / literal "null" as blank. */
+    private fun propName(props: JSONObject?): String {
+        if (props == null || !props.has("name") || props.isNull("name")) return ""
+        val raw = props.optString("name", "").trim()
+        return if (raw.equals("null", ignoreCase = true)) "" else raw
+    }
+
+    private fun setSourceGeoJsonSafe(style: Style?, sourceId: String, geoJson: String) {
+        try {
+            (style?.getSource(sourceId) as? GeoJsonSource)?.setGeoJson(geoJson)
+        } catch (_: Throwable) {
+            try {
+                (style?.getSource(sourceId) as? GeoJsonSource)?.setGeoJson(emptyFeatureCollection())
+            } catch (_: Throwable) {
+                // Ignore MapLibre native failures on bad polygons
+            }
+        }
     }
 
     private fun scheduleViewUpdate(force: Boolean = false) {
@@ -650,14 +703,29 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                 for (i in 0 until min(nearCandidates.size, NEAR_LAYER_CAP)) {
                     nearLines.add(nearCandidates[i].second)
                 }
-                val nearFillFc = lineFeaturesToSurfaceCollection(nearLines)
+                val nearFillFc = try {
+                    lineFeaturesToSurfaceCollection(nearLines, maxFeatures = NEAR_FILL_CAP)
+                } catch (_: Throwable) {
+                    // Absolute fallback: empty near fill rather than crash the filter loop
+                    JSONObject().put("type", "FeatureCollection").put("features", JSONArray())
+                }
                 val fcStr = nearFillFc.toString()
+                var selFcStr: String? = null
+                val stillKey = selectedKey
+                val stillFeatures = display.firstOrNull { it.key == stillKey }?.features
+                if (stillFeatures != null) {
+                    selFcStr = try {
+                        lineFeaturesToSurfaceCollection(stillFeatures).toString()
+                    } catch (_: Throwable) {
+                        null
+                    }
+                }
                 val headingSnapshot = heading
                 val useConeSnapshot = useCone
                 mainHandler.post {
                     if (isDestroyed) return@post
                     val style = mapLibreMap?.style ?: return@post
-                    (style.getSource(SOURCE_NEAR) as? GeoJsonSource)?.setGeoJson(fcStr)
+                    setSourceGeoJsonSafe(style, SOURCE_NEAR, fcStr)
                     riverItems.clear()
                     riverItems.addAll(display)
                     if (display.isEmpty()) {
@@ -672,10 +740,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         val still = display.firstOrNull { it.key == selectedKey }
                         if (selectedKey != null && still == null) {
                             clearSelection(updateList = false)
-                        } else if (still != null) {
-                            val selFc = lineFeaturesToSurfaceCollection(still.features)
-                            (style.getSource(SOURCE_SELECTED) as? GeoJsonSource)
-                                ?.setGeoJson(selFc.toString())
+                        } else if (still != null && selFcStr != null) {
+                            setSourceGeoJsonSafe(style, SOURCE_SELECTED, selFcStr)
                         }
                         riverAdapter.setItems(display, selectedKey)
                     }
@@ -705,7 +771,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         index: Int,
         displayName: String
     ): String {
-        val raw = props?.optString("name").orEmpty().trim()
+        val raw = propName(props)
         if (raw.isNotBlank() && hasRealName(raw)) {
             return "name:" + raw.lowercase()
         }
@@ -725,7 +791,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun displayNameFor(props: JSONObject?, sourceTag: String, key: String): String {
-        val name = props?.optString("name").orEmpty().trim()
+        val name = propName(props)
         if (name.isNotBlank()) return name
         if (sourceTag == "hydro") {
             val id = props?.opt("HYRIV_ID")?.toString() ?: key.removePrefix("hydro:")
@@ -740,9 +806,21 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         btnClearSelection.visibility = View.VISIBLE
         riverAdapter.setItems(riverItems.toList(), selectedKey)
 
-        val fc = lineFeaturesToSurfaceCollection(item.features)
-        val style = mapLibreMap?.style
-        (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(fc.toString())
+        // Build fill polygons off the UI thread (water match + buffer can be heavy)
+        val key = item.key
+        val features = item.features
+        ioExecutor.execute {
+            val fcStr = try {
+                lineFeaturesToSurfaceCollection(features).toString()
+            } catch (_: Throwable) {
+                // Last resort: empty selection fill (camera still moves)
+                emptyFeatureCollection()
+            }
+            mainHandler.post {
+                if (isDestroyed || selectedKey != key) return@post
+                setSourceGeoJsonSafe(mapLibreMap?.style, SOURCE_SELECTED, fcStr)
+            }
+        }
 
         // Focus camera on the selected river only (do not pull toward user location)
         animateCameraToRiver(item)
@@ -804,7 +882,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         selectedKey = null
         btnClearSelection.visibility = View.GONE
         val style = mapLibreMap?.style
-        (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(emptyFeatureCollection())
+        setSourceGeoJsonSafe(style, SOURCE_SELECTED, emptyFeatureCollection())
         if (updateList) {
             riverAdapter.setItems(riverItems.toList(), null)
         }
@@ -946,7 +1024,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                     Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY
                 )
             }
-            val name = f.optJSONObject("properties")?.optString("name").orEmpty().trim()
+            val name = propName(f.optJSONObject("properties"))
             if (name.isNotBlank()) {
                 byName.getOrPut(name.lowercase()) { mutableListOf() }.add(i)
             }
@@ -959,13 +1037,28 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
      * Convert river line features into a FeatureCollection of surface polygons:
      * prefer OSM water areas (name match, then bbox overlap); else buffer the line.
      */
-    private fun lineFeaturesToSurfaceCollection(lineFeatures: List<JSONObject>): JSONObject {
+    private fun lineFeaturesToSurfaceCollection(
+        lineFeatures: List<JSONObject>,
+        maxFeatures: Int = Int.MAX_VALUE
+    ): JSONObject {
         val out = JSONArray()
         val usedWater = HashSet<Int>()
         for (lineFeat in lineFeatures) {
-            val matched = matchWaterPolygons(lineFeat, usedWater)
+            if (out.length() >= maxFeatures) break
+            val matched = if (waterAreasAvailable) {
+                matchWaterPolygons(lineFeat, usedWater)
+            } else {
+                emptyList()
+            }
             if (matched.isNotEmpty()) {
-                for (wf in matched) out.put(wf)
+                for (wf in matched) {
+                    if (out.length() >= maxFeatures) break
+                    // Only Polygon / MultiPolygon — never feed lines to FillLayer
+                    val gtype = wf.optJSONObject("geometry")?.optString("type").orEmpty()
+                    if (gtype == "Polygon" || gtype == "MultiPolygon") {
+                        out.put(wf)
+                    }
+                }
             } else {
                 val buffered = bufferLineFeatureToPolygon(lineFeat)
                 if (buffered != null) out.put(buffered)
@@ -978,7 +1071,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
     private fun matchWaterPolygons(lineFeat: JSONObject, used: MutableSet<Int>): List<JSONObject> {
         val props = lineFeat.optJSONObject("properties")
-        val name = props?.optString("name").orEmpty().trim()
+        val name = propName(props)
         val geom = lineFeat.optJSONObject("geometry") ?: return emptyList()
         val type = geom.optString("type")
         val coords = geom.optJSONArray("coordinates") ?: return emptyList()
@@ -1012,7 +1105,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             val riverLike = water == "river" || water == "oxbow" || water == "canal" ||
                 waterway == "riverbank" || waterway == "dock" ||
                 (natural == "water" && water.isBlank() && waterway.isBlank() &&
-                    wp?.optString("name").orEmpty().isNotBlank())
+                    propName(wp).isNotBlank())
             if (!riverLike) continue
             used.add(i)
             result.add(waterFeatures.getJSONObject(i))
@@ -1109,13 +1202,9 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             JSONObject().put("type", "MultiPolygon").put("coordinates", polygons)
         }
         val outProps = JSONObject()
-        if (props != null) {
-            val name = props.optString("name")
-            if (name.isNotBlank()) outProps.put("name", name)
-            outProps.put("buffer_m", halfM * 2)
-        } else {
-            outProps.put("buffer_m", halfM * 2)
-        }
+        val name = propName(props)
+        if (name.isNotBlank()) outProps.put("name", name)
+        outProps.put("buffer_m", halfM * 2)
         return JSONObject()
             .put("type", "Feature")
             .put("properties", outProps)
@@ -1371,6 +1460,8 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val FILTER_THROTTLE_MS = 750L
         private const val LIST_LIMIT = 12
         private const val NEAR_LAYER_CAP = 400
+        /** Cap fill polygons in the near highlight layer to avoid huge GeoJSON / native OOM. */
+        private const val NEAR_FILL_CAP = 80
         private const val STYLE_ASSET = "style-dark.json"
         private const val MBTILES_FILE = "sichuan-basemap.mbtiles"
         private const val HYDRO_ASSET = "hydrorivers_sichuan.geojson"
