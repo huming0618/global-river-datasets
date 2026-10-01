@@ -43,6 +43,7 @@ import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
+import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -85,6 +86,10 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     private var hasPreciseLocation: Boolean = false
     private var hydroFeatures: JSONArray = JSONArray()
     private var osmFeatures: JSONArray = JSONArray()
+    private var waterFeatures: JSONArray = JSONArray()
+    /** Parallel bbox [minLon,minLat,maxLon,maxLat] for each waterFeatures entry. */
+    private var waterBboxes: Array<DoubleArray> = emptyArray()
+    private var waterByName: Map<String, IntArray> = emptyMap()
     private var riversReady: Boolean = false
 
     private val ioExecutor = Executors.newSingleThreadExecutor()
@@ -373,10 +378,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             try {
                 val hydroJson = readAssetText(HYDRO_ASSET)
                 val osmJson = readAssetText(OSM_ASSET)
+                val waterJson = readAssetText(WATER_AREAS_ASSET)
                 val hydroRoot = JSONObject(hydroJson)
                 val osmRoot = JSONObject(osmJson)
+                val waterRoot = JSONObject(waterJson)
                 hydroFeatures = hydroRoot.getJSONArray("features")
                 osmFeatures = osmRoot.getJSONArray("features")
+                waterFeatures = waterRoot.getJSONArray("features")
+                indexWaterAreas()
                 mainHandler.post {
                     if (isDestroyed) return@post
                     val liveStyle = mapLibreMap?.style ?: style
@@ -412,70 +421,67 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                         )
                     )
+                    // Near highlight: filled water surface (+ outline)
                     liveStyle.addSource(GeoJsonSource(SOURCE_NEAR, emptyFeatureCollection()))
+                    liveStyle.addLayer(
+                        FillLayer(LAYER_NEAR_FILL, SOURCE_NEAR).withProperties(
+                            PropertyFactory.fillColor(Color.parseColor("#00E5FF")),
+                            PropertyFactory.fillOpacity(0.42f),
+                            PropertyFactory.fillAntialias(true)
+                        )
+                    )
                     liveStyle.addLayer(
                         LineLayer(LAYER_NEAR, SOURCE_NEAR).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#00E5FF")),
                             PropertyFactory.lineWidth(Expression.interpolate(
                             Expression.linear(),
                             Expression.zoom(),
-                            Expression.stop(6, 1.4f),
-                            Expression.stop(10, 2.2f),
-                            Expression.stop(14, 2.8f)
+                            Expression.stop(6, 0.8f),
+                            Expression.stop(10, 1.2f),
+                            Expression.stop(14, 1.6f)
                         )),
-                            PropertyFactory.lineOpacity(0.9f),
-                            PropertyFactory.lineBlur(0.15f),
+                            PropertyFactory.lineOpacity(0.85f),
                             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                         )
                     )
                     liveStyle.addLayerBelow(
-                        LineLayer(LAYER_NEAR_GLOW, SOURCE_NEAR).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#00B8D4")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 2.2f),
-                            Expression.stop(10, 3.4f),
-                            Expression.stop(14, 4.2f)
-                        )),
-                            PropertyFactory.lineOpacity(0.18f),
-                            PropertyFactory.lineBlur(0.5f)
+                        FillLayer(LAYER_NEAR_GLOW, SOURCE_NEAR).withProperties(
+                            PropertyFactory.fillColor(Color.parseColor("#00B8D4")),
+                            PropertyFactory.fillOpacity(0.12f)
                         ),
-                        LAYER_NEAR
+                        LAYER_NEAR_FILL
                     )
-                    // Selected river highlight (amber — distinct from cyan/teal)
+                    // Selected river highlight (amber surface)
                     liveStyle.addSource(GeoJsonSource(SOURCE_SELECTED, emptyFeatureCollection()))
                     liveStyle.addLayer(
-                        LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
-                            PropertyFactory.lineColor(Color.parseColor("#FFB300")),
-                            PropertyFactory.lineWidth(Expression.interpolate(
-                            Expression.linear(),
-                            Expression.zoom(),
-                            Expression.stop(6, 1.8f),
-                            Expression.stop(10, 2.8f),
-                            Expression.stop(14, 3.4f)
-                        )),
-                            PropertyFactory.lineOpacity(1.0f),
-                            PropertyFactory.lineBlur(0.1f),
-                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
-                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        FillLayer(LAYER_SELECTED_FILL, SOURCE_SELECTED).withProperties(
+                            PropertyFactory.fillColor(Color.parseColor("#FFB300")),
+                            PropertyFactory.fillOpacity(0.5f),
+                            PropertyFactory.fillAntialias(true)
                         )
                     )
-                    liveStyle.addLayerBelow(
-                        LineLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
+                    liveStyle.addLayer(
+                        LineLayer(LAYER_SELECTED, SOURCE_SELECTED).withProperties(
                             PropertyFactory.lineColor(Color.parseColor("#FF6D00")),
                             PropertyFactory.lineWidth(Expression.interpolate(
                             Expression.linear(),
                             Expression.zoom(),
-                            Expression.stop(6, 2.8f),
-                            Expression.stop(10, 4.0f),
-                            Expression.stop(14, 5.0f)
+                            Expression.stop(6, 1.0f),
+                            Expression.stop(10, 1.6f),
+                            Expression.stop(14, 2.2f)
                         )),
-                            PropertyFactory.lineOpacity(0.22f),
-                            PropertyFactory.lineBlur(0.6f)
+                            PropertyFactory.lineOpacity(0.95f),
+                            PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                            PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                        )
+                    )
+                    liveStyle.addLayerBelow(
+                        FillLayer(LAYER_SELECTED_GLOW, SOURCE_SELECTED).withProperties(
+                            PropertyFactory.fillColor(Color.parseColor("#FF6D00")),
+                            PropertyFactory.fillOpacity(0.16f)
                         ),
-                        LAYER_SELECTED
+                        LAYER_SELECTED_FILL
                     )
                     riversReady = true
                     scheduleViewUpdate(force = true)
@@ -640,15 +646,12 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
 
                 // Cap near-layer for overview zooms: closest-to-user within viewport
                 nearCandidates.sortBy { it.first }
-                val nearOut = JSONArray()
+                val nearLines = mutableListOf<JSONObject>()
                 for (i in 0 until min(nearCandidates.size, NEAR_LAYER_CAP)) {
-                    nearOut.put(nearCandidates[i].second)
+                    nearLines.add(nearCandidates[i].second)
                 }
-
-                val fc = JSONObject()
-                    .put("type", "FeatureCollection")
-                    .put("features", nearOut)
-                val fcStr = fc.toString()
+                val nearFillFc = lineFeaturesToSurfaceCollection(nearLines)
+                val fcStr = nearFillFc.toString()
                 val headingSnapshot = heading
                 val useConeSnapshot = useCone
                 mainHandler.post {
@@ -670,11 +673,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
                         if (selectedKey != null && still == null) {
                             clearSelection(updateList = false)
                         } else if (still != null) {
-                            val arr = JSONArray()
-                            for (f in still.features) arr.put(f)
-                            val selFc = JSONObject()
-                                .put("type", "FeatureCollection")
-                                .put("features", arr)
+                            val selFc = lineFeaturesToSurfaceCollection(still.features)
                             (style.getSource(SOURCE_SELECTED) as? GeoJsonSource)
                                 ?.setGeoJson(selFc.toString())
                         }
@@ -741,11 +740,7 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         btnClearSelection.visibility = View.VISIBLE
         riverAdapter.setItems(riverItems.toList(), selectedKey)
 
-        val featuresArr = JSONArray()
-        for (f in item.features) featuresArr.put(f)
-        val fc = JSONObject()
-            .put("type", "FeatureCollection")
-            .put("features", featuresArr)
+        val fc = lineFeaturesToSurfaceCollection(item.features)
         val style = mapLibreMap?.style
         (style?.getSource(SOURCE_SELECTED) as? GeoJsonSource)?.setGeoJson(fc.toString())
 
@@ -929,6 +924,269 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
             h < 292.5 -> "西"
             else -> "西北"
         }
+    }
+
+
+    /** Build name + bbox indexes for OSM water polygons (call once after load). */
+    private fun indexWaterAreas() {
+        val n = waterFeatures.length()
+        val bboxes = Array(n) { DoubleArray(4) }
+        val byName = HashMap<String, MutableList<Int>>()
+        for (i in 0 until n) {
+            val f = waterFeatures.getJSONObject(i)
+            val geom = f.optJSONObject("geometry")
+            val coords = geom?.optJSONArray("coordinates")
+            val type = geom?.optString("type").orEmpty()
+            val bb = bboxOfGeometry(type, coords)
+            if (bb != null) {
+                bboxes[i] = bb
+            } else {
+                bboxes[i] = doubleArrayOf(
+                    Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY,
+                    Double.NEGATIVE_INFINITY, Double.NEGATIVE_INFINITY
+                )
+            }
+            val name = f.optJSONObject("properties")?.optString("name").orEmpty().trim()
+            if (name.isNotBlank()) {
+                byName.getOrPut(name.lowercase()) { mutableListOf() }.add(i)
+            }
+        }
+        waterBboxes = bboxes
+        waterByName = byName.mapValues { it.value.toIntArray() }
+    }
+
+    /**
+     * Convert river line features into a FeatureCollection of surface polygons:
+     * prefer OSM water areas (name match, then bbox overlap); else buffer the line.
+     */
+    private fun lineFeaturesToSurfaceCollection(lineFeatures: List<JSONObject>): JSONObject {
+        val out = JSONArray()
+        val usedWater = HashSet<Int>()
+        for (lineFeat in lineFeatures) {
+            val matched = matchWaterPolygons(lineFeat, usedWater)
+            if (matched.isNotEmpty()) {
+                for (wf in matched) out.put(wf)
+            } else {
+                val buffered = bufferLineFeatureToPolygon(lineFeat)
+                if (buffered != null) out.put(buffered)
+            }
+        }
+        return JSONObject()
+            .put("type", "FeatureCollection")
+            .put("features", out)
+    }
+
+    private fun matchWaterPolygons(lineFeat: JSONObject, used: MutableSet<Int>): List<JSONObject> {
+        val props = lineFeat.optJSONObject("properties")
+        val name = props?.optString("name").orEmpty().trim()
+        val geom = lineFeat.optJSONObject("geometry") ?: return emptyList()
+        val type = geom.optString("type")
+        val coords = geom.optJSONArray("coordinates") ?: return emptyList()
+        val lineBb = bboxOfGeometry(type, coords) ?: return emptyList()
+        val result = mutableListOf<JSONObject>()
+
+        fun tryIndex(idx: Int) {
+            if (idx in used) return
+            val wbb = waterBboxes.getOrNull(idx) ?: return
+            if (!bboxOverlap(lineBb, wbb, padDeg = 0.0015)) return
+            used.add(idx)
+            result.add(waterFeatures.getJSONObject(idx))
+        }
+
+        if (name.isNotBlank() && hasRealName(name)) {
+            val idxs = waterByName[name.lowercase()]
+            if (idxs != null) {
+                for (idx in idxs) tryIndex(idx)
+            }
+        }
+        if (result.isNotEmpty()) return result
+
+        // Spatial: only river-like water surfaces (not every pond/reservoir)
+        for (i in waterBboxes.indices) {
+            if (i in used) continue
+            if (!bboxOverlap(lineBb, waterBboxes[i], padDeg = 0.0008)) continue
+            val wp = waterFeatures.getJSONObject(i).optJSONObject("properties")
+            val water = wp?.optString("water").orEmpty().lowercase()
+            val waterway = wp?.optString("waterway").orEmpty().lowercase()
+            val natural = wp?.optString("natural").orEmpty().lowercase()
+            val riverLike = water == "river" || water == "oxbow" || water == "canal" ||
+                waterway == "riverbank" || waterway == "dock" ||
+                (natural == "water" && water.isBlank() && waterway.isBlank() &&
+                    wp?.optString("name").orEmpty().isNotBlank())
+            if (!riverLike) continue
+            used.add(i)
+            result.add(waterFeatures.getJSONObject(i))
+            if (result.size >= 6) break
+        }
+        return result
+    }
+
+    private fun bboxOverlap(a: DoubleArray, b: DoubleArray, padDeg: Double): Boolean {
+        // a/b = [minLon,minLat,maxLon,maxLat]
+        return !(a[2] + padDeg < b[0] || a[0] - padDeg > b[2] ||
+            a[3] + padDeg < b[1] || a[1] - padDeg > b[3])
+    }
+
+    private fun bboxOfGeometry(type: String, coords: JSONArray?): DoubleArray? {
+        if (coords == null) return null
+        var minLon = Double.POSITIVE_INFINITY
+        var minLat = Double.POSITIVE_INFINITY
+        var maxLon = Double.NEGATIVE_INFINITY
+        var maxLat = Double.NEGATIVE_INFINITY
+        fun absorbPoint(c: JSONArray) {
+            val lon = c.getDouble(0)
+            val lat = c.getDouble(1)
+            minLon = min(minLon, lon)
+            maxLon = max(maxLon, lon)
+            minLat = min(minLat, lat)
+            maxLat = max(maxLat, lat)
+        }
+        fun absorbRing(ring: JSONArray) {
+            for (i in 0 until ring.length()) absorbPoint(ring.getJSONArray(i))
+        }
+        fun absorbPolygon(poly: JSONArray) {
+            for (i in 0 until poly.length()) absorbRing(poly.getJSONArray(i))
+        }
+        when (type) {
+            "LineString", "LinearRing" -> absorbRing(coords)
+            "MultiLineString", "Polygon" -> {
+                for (i in 0 until coords.length()) absorbRing(coords.getJSONArray(i))
+            }
+            "MultiPolygon" -> {
+                for (i in 0 until coords.length()) absorbPolygon(coords.getJSONArray(i))
+            }
+            else -> return null
+        }
+        if (minLon == Double.POSITIVE_INFINITY) return null
+        return doubleArrayOf(minLon, minLat, maxLon, maxLat)
+    }
+
+    private fun halfWidthMeters(props: JSONObject?): Double {
+        val ord = props?.optInt("ORD_STRA", 0) ?: 0
+        if (ord > 0) {
+            return when {
+                ord >= 7 -> 180.0
+                ord >= 6 -> 120.0
+                ord >= 5 -> 70.0
+                ord >= 4 -> 45.0
+                ord >= 3 -> 25.0
+                else -> 15.0
+            }
+        }
+        return when ((props?.optString("waterway") ?: "").lowercase()) {
+            "river" -> 50.0
+            "canal" -> 25.0
+            "stream" -> 10.0
+            else -> 30.0
+        }
+    }
+
+    /** Buffer a LineString/MultiLineString feature into a Polygon/MultiPolygon feature. */
+    private fun bufferLineFeatureToPolygon(feature: JSONObject): JSONObject? {
+        val geom = feature.optJSONObject("geometry") ?: return null
+        val type = geom.optString("type")
+        val coords = geom.optJSONArray("coordinates") ?: return null
+        val props = feature.optJSONObject("properties")
+        val halfM = halfWidthMeters(props)
+        val polygons = JSONArray()
+        when (type) {
+            "LineString" -> {
+                val poly = bufferLineStringCoords(coords, halfM) ?: return null
+                polygons.put(poly)
+            }
+            "MultiLineString" -> {
+                for (i in 0 until coords.length()) {
+                    val poly = bufferLineStringCoords(coords.getJSONArray(i), halfM)
+                    if (poly != null) polygons.put(poly)
+                }
+            }
+            else -> return null
+        }
+        if (polygons.length() == 0) return null
+        val outGeom = if (polygons.length() == 1) {
+            JSONObject().put("type", "Polygon").put("coordinates", polygons.getJSONArray(0))
+        } else {
+            JSONObject().put("type", "MultiPolygon").put("coordinates", polygons)
+        }
+        val outProps = JSONObject()
+        if (props != null) {
+            val name = props.optString("name")
+            if (name.isNotBlank()) outProps.put("name", name)
+            outProps.put("buffer_m", halfM * 2)
+        } else {
+            outProps.put("buffer_m", halfM * 2)
+        }
+        return JSONObject()
+            .put("type", "Feature")
+            .put("properties", outProps)
+            .put("geometry", outGeom)
+    }
+
+    /**
+     * Simple miter-free parallel-curve buffer → Polygon coordinates [ring].
+     * halfWidthMeters converted to degrees at segment latitude.
+     */
+    private fun bufferLineStringCoords(line: JSONArray, halfWidthMeters: Double): JSONArray? {
+        if (line.length() < 2) return null
+        val pts = mutableListOf<Pair<Double, Double>>()
+        for (i in 0 until line.length()) {
+            val c = line.getJSONArray(i)
+            val lon = c.getDouble(0)
+            val lat = c.getDouble(1)
+            if (pts.isEmpty() ||
+                abs(pts.last().first - lon) > 1e-7 ||
+                abs(pts.last().second - lat) > 1e-7
+            ) {
+                pts.add(lon to lat)
+            }
+        }
+        if (pts.size < 2) return null
+
+        val left = mutableListOf<Pair<Double, Double>>()
+        val right = mutableListOf<Pair<Double, Double>>()
+        for (i in 0 until pts.size) {
+            val (lon, lat) = pts[i]
+            val dx: Double
+            val dy: Double
+            if (i == 0) {
+                dx = pts[1].first - pts[0].first
+                dy = pts[1].second - pts[0].second
+            } else if (i == pts.size - 1) {
+                dx = pts[i].first - pts[i - 1].first
+                dy = pts[i].second - pts[i - 1].second
+            } else {
+                dx = pts[i + 1].first - pts[i - 1].first
+                dy = pts[i + 1].second - pts[i - 1].second
+            }
+            val cosLat = cos(Math.toRadians(lat)).coerceAtLeast(0.2)
+            val dxM = dx * 111_320.0 * cosLat
+            val dyM = dy * 111_320.0
+            val len = sqrt(dxM * dxM + dyM * dyM)
+            if (len < 1e-3) {
+                left.add(lon to lat)
+                right.add(lon to lat)
+                continue
+            }
+            val pxM = -dyM / len * halfWidthMeters
+            val pyM = dxM / len * halfWidthMeters
+            val dLon = pxM / (111_320.0 * cosLat)
+            val dLat = pyM / 111_320.0
+            left.add((lon + dLon) to (lat + dLat))
+            right.add((lon - dLon) to (lat - dLat))
+        }
+        val ring = JSONArray()
+        for (p in left) {
+            ring.put(JSONArray().put(p.first).put(p.second))
+        }
+        for (p in right.asReversed()) {
+            ring.put(JSONArray().put(p.first).put(p.second))
+        }
+        val first = left.first()
+        ring.put(JSONArray().put(first.first).put(first.second))
+        if (ring.length() < 4) return null
+        val poly = JSONArray()
+        poly.put(ring)
+        return poly
     }
 
     private fun emptyFeatureCollection(): String =
@@ -1117,15 +1375,18 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
         private const val MBTILES_FILE = "sichuan-basemap.mbtiles"
         private const val HYDRO_ASSET = "hydrorivers_sichuan.geojson"
         private const val OSM_ASSET = "osm_waterways_sichuan.geojson"
+        private const val WATER_AREAS_ASSET = "osm_water_areas_sichuan.geojson"
         private const val SOURCE_HYDRO = "rivers-hydro"
         private const val SOURCE_OSM = "rivers-osm"
         private const val SOURCE_NEAR = "rivers-near"
         private const val SOURCE_SELECTED = "rivers-selected"
         private const val LAYER_HYDRO = "rivers-hydro-line"
         private const val LAYER_OSM = "rivers-osm-line"
-        private const val LAYER_NEAR = "rivers-near-line"
+        private const val LAYER_NEAR_FILL = "rivers-near-fill"
+        private const val LAYER_NEAR = "rivers-near-outline"
         private const val LAYER_NEAR_GLOW = "rivers-near-glow"
-        private const val LAYER_SELECTED = "rivers-selected-line"
+        private const val LAYER_SELECTED_FILL = "rivers-selected-fill"
+        private const val LAYER_SELECTED = "rivers-selected-outline"
         private const val LAYER_SELECTED_GLOW = "rivers-selected-glow"
     }
 }
