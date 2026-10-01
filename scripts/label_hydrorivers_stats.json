@@ -1,0 +1,12 @@
+{
+  "total_features": 37314,
+  "already_usable": 0,
+  "needs_label": 37314,
+  "labeled_osm": 10348,
+  "labeled_propagate": 3537,
+  "labeled_fallback": 2286,
+  "cleared_placeholder": 3169,
+  "still_unnamed": 21143,
+  "newly_named": 16171,
+  "threshold_m": 120.0
+}

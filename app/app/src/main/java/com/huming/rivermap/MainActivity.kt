@@ -758,10 +758,14 @@ class MainActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun hasRealName(name: String): Boolean {
-        return name.isNotBlank() &&
-            !name.startsWith("未命名") &&
-            !name.startsWith("HydroRIVERS") &&
-            !name.startsWith("OSM ")
+        if (name.isBlank()) return false
+        if (name.startsWith("未命名")) return false
+        if (name.startsWith("HydroRIVERS")) return false
+        if (name.startsWith("OSM ")) return false
+        // Synthetic HydroRIVERS placeholders (pre-OSM-label era)
+        if (name.startsWith("主河道") && name.any { it.isDigit() }) return false
+        if (name.startsWith("河段") && name.any { it.isDigit() } && !name.contains("支流")) return false
+        return true
     }
 
     /** Named rivers group by trimmed name; unnamed stay unique by HYRIV_ID / osm_id. */

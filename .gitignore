@@ -20,3 +20,7 @@ data/sichuan/*.mbtiles
 
 # Scratch
 /workspace-scratch/
+
+# Generated Sichuan extracts (assets/*.geojson.gz is canonical)
+data/sichuan/*.geojson
+data/sichuan/*.geojson.gz
